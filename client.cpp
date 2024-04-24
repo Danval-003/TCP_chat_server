@@ -61,7 +61,7 @@ void* senderFunction(void* arg) {
             char optionChar = option[0];
 
             switch (optionChar) {
-                case '1': { 
+                case '1': {
                     // Send message
                     request.set_operation(chat::SEND_MESSAGE);
                     std::cout << "Enter the message: ";
