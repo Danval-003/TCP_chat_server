@@ -3,42 +3,66 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <thread>
+#include <pthread.h>
 #include <cstring>
+#include "chat.pb.h"
 
-void handleClient(int clientSocket) {
-    // Aquí puedes realizar cualquier lógica adicional para comunicarte con el cliente
+struct ClientInfo {
+    int socket;            // Socket asociado con el cliente
+    std::string ipAddress; // Dirección IP del cliente en formato legible
+};
 
-    while (1)
-    {
-        // Recibir datos del cliente
-        char buffer[1024] = {0};
-        int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
-        if (bytesRead <= 0) {
-            std::cerr << "Se desconecto el cliente" << std::endl;
+void* handleClient(void* arg) {
+    int clientSocket = *((int*)arg);
+    printf("Cliente conectado\n");
+
+    while (1) {
+        // Recibir el tamaño de la solicitud
+        uint32_t requestSize;
+        if (recv(clientSocket, &requestSize, sizeof(requestSize), 0) <= 0) {
+            std::cerr << "Error al recibir el tamaño de la solicitud." << std::endl;
             break;
         }
 
-        std::cout << "Cliente: " << buffer << std::endl;
-
-        // Enviar datos al cliente
-        const char* message = "Hola, cliente!";
-        if (send(clientSocket, message, strlen(message), 0) < 0) {
-            std::cerr << "Error al enviar datos al cliente." << std::endl;
+        // Recibir la solicitud
+        char buffer[requestSize];
+        if (recv(clientSocket, buffer, requestSize, 0) <= 0) {
+            std::cerr << "Error al recibir la solicitud." << std::endl;
             break;
         }
+
+        // Deserializar la solicitud
+        chat::Request request;
+        if (!request.ParseFromArray(buffer, requestSize)) {
+            std::cerr << "Error al analizar la solicitud." << std::endl;
+            break;
+        }
+
+        // Procesar la solicitud
+
+        switch (request.operation())
+        {
+        case chat::SEND_MESSAGE: 
+            std::cout << "Cliente: " << request.send_message().content() << std::endl;
+            break;
+        
+        default:
+            break;
+        }
+
     }
-    
 
     // Cerrar el socket del cliente
     close(clientSocket);
+
+    return NULL; // Agregar declaración de retorno
 }
 
 int main() {
-    // Crear el socket
+    // Crear el socket del servidor
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket == -1) {
-        std::cerr << "Error al crear el socket." << std::endl;
+        std::cerr << "Error al crear el socket del servidor." << std::endl;
         return 1;
     }
 
@@ -75,14 +99,25 @@ int main() {
             return 1;
         }
 
-        std::cout << "Cliente conectado." << std::endl;
+        char clientIP[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(clientAddress.sin_addr), clientIP, INET_ADDRSTRLEN);
 
-        // Crear un hilo para manejar la conexión del cliente
-        std::thread clientThread(handleClient, clientSocket);
-        clientThread.detach();
+        ClientInfo clientInfo;
+        clientInfo.socket = clientSocket;
+        clientInfo.ipAddress = clientIP;
+
+        std::cout << "Cliente conectado. Desde "<<clientInfo.ipAddress<<":" <<clientInfo.socket<<"."<< std::endl;
+
+        // Crear hilo para manejar el cliente
+        pthread_t clientThread;
+        if (pthread_create(&clientThread, NULL, handleClient, (void*)&clientSocket) != 0) {
+            std::cerr << "Error al crear el hilo para el cliente." << std::endl;
+            close(clientSocket);
+            continue; // Continuar aceptando nuevas conexiones
+        }
     }
 
-    // Cerrar el socket del servidor
+    // Cerrar el socket del servidor (nunca llega aquí en un bucle infinito)
     close(serverSocket);
 
     return 0;

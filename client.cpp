@@ -3,6 +3,110 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <cstring>
+#include "chat.pb.h"
+#include <pthread.h>
+#include <string>
+
+struct ThreadParams {
+    int clientSocket;
+    pthread_t* receptor_pthread;
+};
+
+void* receptorFunction(void* arg) {
+    int clientSocket = *((int*)arg);
+
+    while (true) {
+        // Receive response size
+        uint32_t responseSize;
+        if (recv(clientSocket, &responseSize, sizeof(responseSize), 0) <= 0) {
+            std::cerr << "Failed to receive response size." << std::endl;
+            break;
+        }
+        chat::Response response;
+
+        // Receive response
+        char buffer[responseSize];
+        if (recv(clientSocket, buffer, responseSize, 0) <= 0) {
+            std::cerr << "Failed to receive response." << std::endl;
+            break;
+        }
+
+        // Parse response
+        if (!response.ParseFromArray(buffer, responseSize)) {
+            std::cerr << "Failed to parse response." << std::endl;
+            break;
+        }
+
+        std::cout << "Server: " << response.message() << std::endl;
+
+    }
+    return nullptr; // Agregar declaración de retorno
+}
+
+void* senderFunction(void* arg) {
+    ThreadParams tp = *((ThreadParams*)arg);
+    int clientSocket = tp.clientSocket;
+    bool isRunnig = true;
+    while (isRunnig) {
+        // Create request
+        chat::Request request;
+        std::cout << "What do you want to do?" << std::endl;
+        std::string option;
+        std::cin >> option;
+
+        int legthOption = option.length();
+
+        if (legthOption<=1){
+
+            char optionChar = option[0];
+
+            switch (optionChar) {
+                case '1': {
+                    // Send message
+                    request.set_operation(chat::SEND_MESSAGE);
+                    std::cout << "Enter the message: ";
+                    std::string message;
+                    std::cin >> message;
+                    request.mutable_send_message()->set_content(message);
+
+                    // Serialize request
+                    uint32_t requestSize = request.ByteSizeLong(); // Use ByteSizeLong()
+                    char buffer[requestSize];
+                    if (!request.SerializeToArray(buffer, requestSize)) {
+                        std::cerr << "Failed to serialize request." << std::endl;
+                        break;
+                    }
+
+                    // Send request size
+                    if (send(clientSocket, &requestSize, sizeof(requestSize), 0) < 0) {
+                        std::cerr << "Failed to send request size." << std::endl;
+                        break;
+                    }
+
+                    // Send request
+                    if (send(clientSocket, buffer, requestSize, 0) < 0) {
+                        std::cerr << "Failed to send request." << std::endl;
+                        break;
+                    }
+
+                    break;
+                }
+                default:
+                    isRunnig = false;
+                    
+                    std::cout<<"Saliendo del chat..."<<std::endl;
+                    break;
+            }
+        } else {
+            std::cout<<"Saliendo del chat..."<<std::endl;
+            isRunnig = false;
+        }
+
+    }
+
+    pthread_cancel(*tp.receptor_pthread);
+    return nullptr; // Agregar declaración de retorno
+}
 
 int main() {
     // Create a socket
@@ -27,21 +131,19 @@ int main() {
         return 1;
     }
 
-    // Send data to the server
-    const char* message = "Hello, server!";
-    if (send(clientSocket, message, strlen(message), 0) < 0) {
-        std::cerr << "Failed to send data." << std::endl;
-        return 1;
-    }
+    // Create pthread to receive messages
+    pthread_t receptorThread;
+    pthread_create(&receptorThread, NULL, receptorFunction, (void*)&clientSocket);
+    ThreadParams tp = {clientSocket, &receptorThread};
 
-    // Receive response from the server
-    char buffer[1024] = {0};
-    if (recv(clientSocket, buffer, sizeof(buffer), 0) < 0) {
-        std::cerr << "Failed to receive data." << std::endl;
-        return 1;
-    }
+    // Create pthread to send messages
+    pthread_t senderThread;
+    pthread_create(&senderThread, NULL, senderFunction, (void*)&tp);
 
-    std::cout << "Server response: " << buffer << std::endl;
+
+    // Wait for the threads to finish
+    pthread_join(receptorThread, NULL);
+    pthread_join(senderThread, NULL);
 
     // Close the socket
     close(clientSocket);
