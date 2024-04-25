@@ -52,7 +52,7 @@ void* senderFunction(void* arg) {
         chat::Request request;
         std::cout << "What do you want to do?" << std::endl;
         std::string option;
-        std::cin >> option;
+        std::getline(std::cin, option);
 
         int legthOption = option.length();
 
@@ -66,7 +66,8 @@ void* senderFunction(void* arg) {
                     request.set_operation(chat::SEND_MESSAGE);
                     std::cout << "Enter the message: ";
                     std::string message;
-                    std::cin >> message;
+                    std::getline(std::cin, message);
+                    std::cout<<message<<std::endl;
                     request.mutable_send_message()->set_content(message);
 
                     // Serialize request
@@ -77,6 +78,7 @@ void* senderFunction(void* arg) {
                         break;
                     }
 
+                    std::cout<<requestSize<<std::endl;
                     // Send request size
                     if (send(clientSocket, &requestSize, sizeof(requestSize), 0) < 0) {
                         std::cerr << "Failed to send request size." << std::endl;
