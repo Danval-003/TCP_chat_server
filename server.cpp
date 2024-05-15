@@ -6,8 +6,7 @@
 #include <pthread.h>
 #include <cstring>
 #include "chat.pb.h"
-
-#define BUFFER_SIZE 5000
+#include "constants.h"
 
 struct ClientInfo {
     int socket;            // Socket asociado con el cliente
@@ -66,7 +65,7 @@ int main() {
     sockaddr_in serverAddress{};
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_addr.s_addr = INADDR_ANY;
-    serverAddress.sin_port = htons(4000); // Puerto 4000
+    serverAddress.sin_port = htons(PORT); // Puerto 4000
 
     // Vincular el socket a la dirección del servidor
     if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {

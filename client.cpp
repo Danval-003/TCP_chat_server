@@ -7,11 +7,7 @@
 #include <pthread.h>
 #include <string>
 #include <iomanip>
-
-// Set the maximum buffer (message) size to 5000 bytes.
-// This limit is predetermined to ensure sufficient space for data processing,
-// preventing buffer overflow and maintaining system stability.
-#define BUFFER_SIZE 5000
+#include "constants.h"
 
 struct ThreadParams {
     int clientSocket;
@@ -119,8 +115,8 @@ int main() {
     // Set up the server address and port
     sockaddr_in serverAddress{};
     serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(4000);  // Replace with the actual server port
-    if (inet_pton(AF_INET, "18.191.89.30", &(serverAddress.sin_addr)) <= 0) {
+    serverAddress.sin_port = htons(PORT);  // Replace with the actual server port
+    if (inet_pton(AF_INET, SERVER_IP, &(serverAddress.sin_addr)) <= 0) {
         std::cerr << "Invalid address/Address not supported." << std::endl;
         return 1;
     }
