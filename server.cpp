@@ -7,6 +7,8 @@
 #include <cstring>
 #include "chat.pb.h"
 
+#define BUFFER_SIZE 6000
+
 struct ClientInfo {
     int socket;            // Socket asociado con el cliente
     std::string ipAddress; // Dirección IP del cliente en formato legible
@@ -17,23 +19,17 @@ void* handleClient(void* arg) {
     printf("Cliente conectado\n");
 
     while (1) {
-        // Recibir el tamaño de la solicitud
-        uint32_t requestSize;
-        if (recv(clientSocket, &requestSize, sizeof(requestSize), 0) <= 0) {
-            std::cerr << "Error al recibir el tamaño de la solicitud." << std::endl;
-            break;
-        }
 
         // Recibir la solicitud
-        char buffer[requestSize];
-        if (recv(clientSocket, buffer, requestSize, 0) <= 0) {
+        char buffer[BUFFER_SIZE];
+        if (recv(clientSocket, buffer, BUFFER_SIZE, 0) <= 0) {
             std::cerr << "Error al recibir la solicitud." << std::endl;
             break;
         }
 
         // Deserializar la solicitud
         chat::Request request;
-        if (!request.ParseFromArray(buffer, requestSize)) {
+        if (!request.ParseFromArray(buffer, BUFFER_SIZE)) {
             std::cerr << "Error al analizar la solicitud." << std::endl;
             break;
         }
@@ -70,7 +66,7 @@ int main() {
     sockaddr_in serverAddress{};
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_addr.s_addr = INADDR_ANY;
-    serverAddress.sin_port = htons(8080); // Puerto 8080
+    serverAddress.sin_port = htons(4000); // Puerto 4000
 
     // Vincular el socket a la dirección del servidor
     if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {
@@ -107,6 +103,8 @@ int main() {
         clientInfo.ipAddress = clientIP;
 
         std::cout << "Cliente conectado. Desde "<<clientInfo.ipAddress<<":" <<clientInfo.socket<<"."<< std::endl;
+        std::cout << BUFFER_SIZE << std::endl;
+
 
         // Crear hilo para manejar el cliente
         pthread_t clientThread;
