@@ -7,7 +7,7 @@
 #include <cstring>
 #include "chat.pb.h"
 
-#define BUFFER_SIZE 6000
+#define BUFFER_SIZE 5000
 
 struct ClientInfo {
     int socket;            // Socket asociado con el cliente
