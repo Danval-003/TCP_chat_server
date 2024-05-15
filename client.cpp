@@ -7,6 +7,11 @@
 #include <pthread.h>
 #include <string>
 
+// Set the maximum buffer (message) size to 5000 bytes.
+// This limit is predetermined to ensure sufficient space for data processing,
+// preventing buffer overflow and maintaining system stability.
+#define BUFFER_SIZE 5000
+
 struct ThreadParams {
     int clientSocket;
     pthread_t* receptor_pthread;
@@ -16,23 +21,17 @@ void* receptorFunction(void* arg) {
     int clientSocket = *((int*)arg);
 
     while (true) {
-        // Receive response size
-        uint32_t responseSize;
-        if (recv(clientSocket, &responseSize, sizeof(responseSize), 0) <= 0) {
-            std::cerr << "Failed to receive response size." << std::endl;
-            break;
-        }
         chat::Response response;
 
         // Receive response
-        char buffer[responseSize];
-        if (recv(clientSocket, buffer, responseSize, 0) <= 0) {
+        char buffer[BUFFER_SIZE];
+        if (recv(clientSocket, buffer, BUFFER_SIZE, 0) <= 0) {
             std::cerr << "Failed to receive response." << std::endl;
             break;
         }
 
         // Parse response
-        if (!response.ParseFromArray(buffer, responseSize)) {
+        if (!response.ParseFromArray(buffer, BUFFER_SIZE)) {
             std::cerr << "Failed to parse response." << std::endl;
             break;
         }
@@ -70,32 +69,21 @@ void* senderFunction(void* arg) {
                     std::cout<<message<<std::endl;
                     request.mutable_send_message()->set_content(message);
 
-                    // Serialize request
-                    uint32_t requestSize = request.ByteSizeLong(); // Use ByteSizeLong()
-                    char buffer[requestSize];
-                    if (!request.SerializeToArray(buffer, requestSize)) {
+                    char buffer[BUFFER_SIZE];
+                    if (!request.SerializeToArray(buffer, BUFFER_SIZE)) {
                         std::cerr << "Failed to serialize request." << std::endl;
                         break;
                     }
 
-                    std::cout<<requestSize<<std::endl;
-                    // Send request size
-                    if (send(clientSocket, &requestSize, sizeof(requestSize), 0) < 0) {
-                        std::cerr << "Failed to send request size." << std::endl;
-                        break;
-                    }
-
                     // Send request
-                    if (send(clientSocket, buffer, requestSize, 0) < 0) {
+                    if (send(clientSocket, buffer, BUFFER_SIZE, 0) < 0) {
                         std::cerr << "Failed to send request." << std::endl;
                         break;
                     }
-
                     break;
                 }
                 default:
-                    isRunnig = false;
-                    
+                    isRunnig = false;                    
                     std::cout<<"Saliendo del chat..."<<std::endl;
                     break;
             }
