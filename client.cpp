@@ -121,8 +121,8 @@ int main() {
     // Set up the server address and port
     sockaddr_in serverAddress{};
     serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(8080);  // Replace with the actual server port
-    if (inet_pton(AF_INET, "127.0.0.1", &(serverAddress.sin_addr)) <= 0) {
+    serverAddress.sin_port = htons(4000);  // Replace with the actual server port
+    if (inet_pton(AF_INET, "18.191.89.30", &(serverAddress.sin_addr)) <= 0) {
         std::cerr << "Invalid address/Address not supported." << std::endl;
         return 1;
     }
