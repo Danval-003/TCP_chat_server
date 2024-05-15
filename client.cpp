@@ -6,6 +6,7 @@
 #include "chat.pb.h"
 #include <pthread.h>
 #include <string>
+#include <iomanip>
 
 // Set the maximum buffer (message) size to 5000 bytes.
 // This limit is predetermined to ensure sufficient space for data processing,
@@ -70,10 +71,19 @@ void* senderFunction(void* arg) {
                     request.mutable_send_message()->set_content(message);
 
                     char buffer[BUFFER_SIZE];
+
+                    
                     if (!request.SerializeToArray(buffer, BUFFER_SIZE)) {
                         std::cerr << "Failed to serialize request." << std::endl;
                         break;
                     }
+
+                    // Print serialized data (for debugging purposes)
+                    std::cout << "Serialized data: " << std::endl;
+                    for (int i = 0; i < request.ByteSizeLong(); ++i) {
+                        std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(buffer[i]) << " ";
+                    }
+                    std::cout << std::endl;
 
                     // Send request
                     if (send(clientSocket, buffer, BUFFER_SIZE, 0) < 0) {
