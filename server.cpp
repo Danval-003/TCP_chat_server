@@ -6,8 +6,11 @@
 #include <pthread.h>
 #include <cstring>
 #include "./proto/chat.pb.h"
+#include "constants.h"
+#include "./src/sendFunction.h"
+#include "nlohmann/json.hpp"
 
-#define BUFFER_SIZE 5000
+using json = nlohmann::json;
 
 struct ClientInfo {
     int socket;            // Socket asociado con el cliente
@@ -15,27 +18,46 @@ struct ClientInfo {
 };
 
 void* handleClient(void* arg) {
-    int clientSocket = *((int*)arg);
-    printf("Cliente conectado\n");
+    ClientInfo* info = (ClientInfo*)arg;
+    int clientSocket = info->socket;
+    printf("Cliente conectadon");
+    // Recive the request
+    chat::Request first_request;
+    // First request are the user name
+    int status = getRequest(&first_request, clientSocket);
+    if (status == -1) {
+        std::cerr << "Error al recibir la solicitud." << std::endl;
+        return NULL;
+    }
+
+    if (status == 2) {
+        std::cerr << "Cliente desconectado" << std::endl;
+        return NULL;
+    }
+
+    // Verify the operation are login
+    if (first_request.operation() != chat::REGISTER_USER) {
+        std::cerr << "Error al recibir la solicitud." << std::endl;
+        return NULL;
+    }
+
+    // Get the user name
+    std::string userName = first_request.register_user().username();
+    std::cout << "Usuario: " << userName << std::endl;
+
+    first_request.Clear();
 
     while (1) {
-
-        // Recibir la solicitud
-        char buffer[BUFFER_SIZE];
-        if (recv(clientSocket, buffer, BUFFER_SIZE, 0) <= 0) {
+        chat::Request request;
+        int status = getRequest(&request, clientSocket);
+        if (status == -1) {
             std::cerr << "Error al recibir la solicitud." << std::endl;
             break;
         }
-
-        // Deserializar la solicitud
-        chat::Request request;
-        if (!request.ParseFromArray(buffer, BUFFER_SIZE)) {
-            std::cerr << "Error al analizar la solicitud." << std::endl;
+        if (status == 2) {
+            std::cerr << "Cliente desconectado" << std::endl;
             break;
         }
-
-        // Procesar la solicitud
-
         switch (request.operation())
         {
         case chat::SEND_MESSAGE: 
@@ -45,7 +67,6 @@ void* handleClient(void* arg) {
         default:
             break;
         }
-
     }
 
     // Cerrar el socket del cliente
@@ -84,7 +105,7 @@ int main() {
 
     std::cout << "Servidor TCP iniciado. Esperando conexiones..." << std::endl;
 
-    while (true) {
+    while (1) {
         // Aceptar conexiones entrantes
         sockaddr_in clientAddress{};
         socklen_t clientAddressLength = sizeof(clientAddress);
@@ -108,7 +129,7 @@ int main() {
 
         // Crear hilo para manejar el cliente
         pthread_t clientThread;
-        if (pthread_create(&clientThread, NULL, handleClient, (void*)&clientSocket) != 0) {
+        if (pthread_create(&clientThread, NULL, handleClient, (void*)&clientInfo) != 0) {
             std::cerr << "Error al crear el hilo para el cliente." << std::endl;
             close(clientSocket);
             continue; // Continuar aceptando nuevas conexiones
