@@ -29,10 +29,13 @@ struct ThreadParams {
 
 void printMenu() {
     std::vector<std::string> menuItems = {
-        "1. Send General Message",
-        "2. Send Private Message",
-        "3. List Active Users",
-        "4. Exit"
+        "1. Broadcasting",
+        "2. Send Direct Message",
+        "3. Change Status",
+        "4. List Active Users",
+        "5. Get User Information",
+        "6. Help",
+        "7. Exit"
     };
 
     const std::string title = "OS Chat Main Menu";
@@ -74,6 +77,11 @@ void printMenu() {
     printBorder(borderChar, width);
 }
 
+// Register user function (make comments better)
+void registerUser(){
+    //Logic
+}
+
 // Function to continuously listen for messages from the server
 // and store them in a stack
 void* listener(void* arg) {
@@ -95,9 +103,9 @@ void* senderFunction(void* arg) {
     bool isRunnig = true;
 
     while (isRunnig) {
-
         // Create request
         chat::Request request;
+
         printMenu();
 
         std::cout << "\nWhat do you want to do?" << std::endl;
@@ -148,7 +156,28 @@ void* senderFunction(void* arg) {
     return nullptr; // Agregar declaración de retorno
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+
+    // Check if the number of command-line arguments is exactly 4
+    if (argc != 3) {
+        printf("Usage: %s <username> <serverip> <port>\n", argv[0]);
+        //return 1; // Exit the program with an error code
+    }
+
+    //char username[100]; // Current client username.
+    //char serverip[100]; // Current client serverip.
+    //char port[100]; // Current client port.
+
+    // Assign command-line arguments to the respective variables
+    //sprintf(username, "%s", argv[1]);
+    //sprintf(serverip, "%s", argv[2]);
+    //sprintf(port, "%s", argv[3]);
+
+    // Print the values to verify
+    std::cout << TEST_USERNAME << "\n";
+    std::cout << SERVER_IP << "\n";
+    std::cout << PORT << "\n";
+
     // Create a socket
     int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (clientSocket == -1) {

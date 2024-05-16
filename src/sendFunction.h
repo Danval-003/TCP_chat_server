@@ -2,7 +2,7 @@
 #include <sys/socket.h>
 #include "../proto/chat.pb.h"
 #include <string>
-#include "constants.h"
+#include "../constants.h"
 
 // Define fuction to send request to server
 int sendRequest(chat::Request* request, int clientSocket);
