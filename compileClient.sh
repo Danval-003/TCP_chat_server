@@ -1,2 +1,2 @@
-g++ -o client client.cpp chat.pb.cc -pthread -lprotobuf -static-libstdc++
-./client
+g++ -o ./exec/client client.cpp ./proto/chat.pb.cc -pthread -lprotobuf -static-libstdc++
+./exec/client
