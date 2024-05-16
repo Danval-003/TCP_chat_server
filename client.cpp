@@ -3,61 +3,113 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <cstring>
-#include "chat.pb.h"
+#include "./proto/chat.pb.h"
 #include <pthread.h>
 #include <string>
 #include <iomanip>
+#include <queue>
+#include <mutex>
 #include "constants.h"
+
+// Set the maximum buffer (message) size to 5000 bytes.
+// This limit is predetermined to ensure sufficient space for data processing,
+// preventing buffer overflow and maintaining system stability.
+#define BUFFER_SIZE 5000
+
+// Boolean to handle waiting status
+bool awaitingResponse = false;
+
+// Queue to store the incoming message from the server (FIFO)
+std::queue<std::string> messages;
 
 struct ThreadParams {
     int clientSocket;
     pthread_t* receptor_pthread;
 };
 
-void* receptorFunction(void* arg) {
+void printMenu() {
+    std::vector<std::string> menuItems = {
+        "1. Send General Message",
+        "2. Send Private Message",
+        "3. List Active Users",
+        "4. Exit"
+    };
+
+    const std::string title = "OS Chat Main Menu";
+    const int width = 50;
+    const char borderChar = '.';
+
+    auto printBorder = [&](char ch, int count) {
+        std::cout << std::string(count, ch) << std::endl;
+    };
+
+    auto printCentered = [&](const std::string& text, int width, char borderChar) {
+        int padding = (width - text.length()) / 2;
+        int paddingLeft = padding;
+        int paddingRight = padding;
+
+        if ((width - text.length()) % 2 != 0) {
+            paddingRight++;
+        }
+
+        std::cout << borderChar << std::string(paddingLeft, ' ') << text 
+                  << std::string(paddingRight, ' ') << borderChar << std::endl;
+    };
+
+    // Print top border
+    printBorder(borderChar, width);
+
+    // Print title
+    printCentered(title, width - 2, borderChar);
+
+    // Print separating border
+    printBorder(borderChar, width);
+
+    // Print menu items
+    for (const auto& item : menuItems) {
+        printCentered(item, width - 2, borderChar);
+    }
+
+    // Print bottom border
+    printBorder(borderChar, width);
+}
+
+// Function to continuously listen for messages from the server
+// and store them in a stack
+void* listener(void* arg) {
     int clientSocket = *((int*)arg);
 
+    // Continuously listen for messages from the server
     while (true) {
         chat::Response response;
-
-        // Receive response
-        char buffer[BUFFER_SIZE];
-        if (recv(clientSocket, buffer, BUFFER_SIZE, 0) <= 0) {
-            std::cerr << "Failed to receive response." << std::endl;
-            break;
-        }
-
-        // Parse response
-        if (!response.ParseFromArray(buffer, BUFFER_SIZE)) {
-            std::cerr << "Failed to parse response." << std::endl;
-            break;
-        }
-
-        std::cout << "Server: " << response.message() << std::endl;
-
     }
-    return nullptr; // Agregar declaración de retorno
+
+    // Return nullptr to indicate the thread's completion
+    return nullptr;
 }
 
 void* senderFunction(void* arg) {
+
     ThreadParams tp = *((ThreadParams*)arg);
     int clientSocket = tp.clientSocket;
     bool isRunnig = true;
+
     while (isRunnig) {
+
         // Create request
         chat::Request request;
-        std::cout << "What do you want to do?" << std::endl;
+        printMenu();
+
+        std::cout << "\nWhat do you want to do?" << std::endl;
         std::string option;
         std::getline(std::cin, option);
 
         int legthOption = option.length();
-
         if (legthOption<=1){
-
             char optionChar = option[0];
-
             switch (optionChar) {
                 case '1': {
+
                     // Send message
                     request.set_operation(chat::SEND_MESSAGE);
                     std::cout << "Enter the message: ";
@@ -68,18 +120,10 @@ void* senderFunction(void* arg) {
 
                     char buffer[BUFFER_SIZE];
 
-                    
                     if (!request.SerializeToArray(buffer, BUFFER_SIZE)) {
                         std::cerr << "Failed to serialize request." << std::endl;
                         break;
                     }
-
-                    // Print serialized data (for debugging purposes)
-                    std::cout << "Serialized data: " << std::endl;
-                    for (int i = 0; i < request.ByteSizeLong(); ++i) {
-                        std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(buffer[i]) << " ";
-                    }
-                    std::cout << std::endl;
 
                     // Send request
                     if (send(clientSocket, buffer, BUFFER_SIZE, 0) < 0) {
@@ -90,11 +134,11 @@ void* senderFunction(void* arg) {
                 }
                 default:
                     isRunnig = false;                    
-                    std::cout<<"Saliendo del chat..."<<std::endl;
+                    std::cout<<"Exiting the chat now..."<<std::endl;
                     break;
             }
         } else {
-            std::cout<<"Saliendo del chat..."<<std::endl;
+            std::cout<<"Exiting the chat now..."<<std::endl;
             isRunnig = false;
         }
 
@@ -129,7 +173,7 @@ int main() {
 
     // Create pthread to receive messages
     pthread_t receptorThread;
-    pthread_create(&receptorThread, NULL, receptorFunction, (void*)&clientSocket);
+    pthread_create(&receptorThread, NULL, listener, (void*)&clientSocket);
     ThreadParams tp = {clientSocket, &receptorThread};
 
     // Create pthread to send messages
