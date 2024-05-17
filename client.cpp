@@ -185,6 +185,7 @@ void* listener(void* arg) {
 // Main functions as a the thread to handle server requests.
 int main(int argc, char* argv[]) {
     int choice;
+    std::string choiceStr;
     bool isRunnig = true;
 
     // Check if the number of command-line arguments is exactly 4
@@ -248,14 +249,22 @@ int main(int argc, char* argv[]) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
-        std::cout << "\nWhat would you like to do? " << std::endl;
-        std::cin.clear();
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-
-        if (!(std::cin >> choice)) {
-            std::cout << "Invalid input! Please enter a number." << std::endl;
+        if (choiceStr.empty()) {
+            std::cout << "\nWhat would you like to do? " << std::endl;
+            std::getline(std::cin, choiceStr);
             continue;
         }
+
+        // Verify if the input is a digit
+        if (std::all_of(choiceStr.begin(), choiceStr.end(), ::isdigit)) {
+            choice = std::stoi(choiceStr);
+        } else {
+            std::cout << "Not a valid choice! Please choose a number between 1 and 7." << std::endl;
+            continue;
+        }
+
+
+
 
         switch (choice) {
             case 1:
@@ -284,6 +293,8 @@ int main(int argc, char* argv[]) {
                 std::cout << "Not a valid choice! Please choose a number between 1 and 7." << std::endl;
                 break;
         }
+        choiceStr.clear();
+        choice = 0;
     };
 
     // Wait for the threads to finish
