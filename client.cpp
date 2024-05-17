@@ -11,6 +11,9 @@
 #include <mutex>
 #include "constants.h"
 #include "./src/sendFunction.h"
+#include <vector>
+using namespace std;
+ 
 
 // Set the maximum buffer (message) size to 5000 bytes.
 // This limit is predetermined to ensure sufficient space for data processing,
@@ -20,7 +23,7 @@
 // Boolean to handle waiting status
 bool awaitingResponse = false;
 
-// Queue to store the incoming message from the server (FIFO)
+// Queue to store the incoming messages from the server (FIFO)
 std::queue<std::string> messages;
 
 struct ThreadParams {
@@ -116,81 +119,71 @@ void registerUser(int clientSocket) {
     }
 }
 
-// Function to continuously listen for messages from the server
-// and store them in a stack
+void getActiveUsers(int clientSocket) {
+
+    chat::Request request;
+    request.set_operation(chat::GET_USERS); 
+
+    if (sendRequest(&request, clientSocket) < 0) { 
+        std::cout << "\nFailed to send request." << std::endl; 
+        exit(1); 
+    }
+
+}
+
+// Function to continuously listen responses from server
 void* listener(void* arg) {
     int clientSocket = *((int*)arg);
 
     // Continuously listen for messages from the server
     while (true) {
         chat::Response response;
+
+        if (getResponse(&response, clientSocket) < 0) {
+            std::cout << "\nFailed to receive response." << std::endl; 
+            exit(1);
+        }
+
+        switch (response.operation()){
+
+        case 1:
+            // TODO: Code to send direct message.
+            break;
+
+        case 2:
+            // TODO: Code to change user status.
+            break;
+
+        case 3:
+            if (!response.has_user_list()) {
+                std::cout << "\nNo active users found." << std::endl; 
+            } else {
+                const auto &user_list = response.user_list();
+                std::cout << "Active users:" << std::endl;
+                for (const auto& user : user_list.users()) {
+                    std::cout << user.username() << std::endl;
+                }
+            }
+            break;
+
+        case 4:
+            // TODO: Code to get user information.
+            break;
+
+        case 5:
+            // TODO: Code to print help menu.
+            break;
+        }
     }
 
     // Return nullptr to indicate the thread's completion
     return nullptr;
-}
+};
 
-void* senderFunction(void* arg) {
-
-    ThreadParams tp = *((ThreadParams*)arg);
-    int clientSocket = tp.clientSocket;
-    bool isRunnig = true;
-
-    while (isRunnig) {
-        // Create request
-        chat::Request request;
-
-        printMenu();
-
-        std::cout << "\nWhat do you want to do?" << std::endl;
-        std::string option;
-        std::getline(std::cin, option);
-
-        int legthOption = option.length();
-        if (legthOption<=1){
-            char optionChar = option[0];
-            switch (optionChar) {
-                case '1': {
-
-                    // Send message
-                    request.set_operation(chat::SEND_MESSAGE);
-                    std::cout << "Enter the message: ";
-                    std::string message;
-                    std::getline(std::cin, message);
-                    std::cout<<message<<std::endl;
-                    request.mutable_send_message()->set_content(message);
-
-                    char buffer[BUFFER_SIZE];
-
-                    if (!request.SerializeToArray(buffer, BUFFER_SIZE)) {
-                        std::cerr << "Failed to serialize request." << std::endl;
-                        break;
-                    }
-
-                    // Send request
-                    if (send(clientSocket, buffer, BUFFER_SIZE, 0) < 0) {
-                        std::cerr << "Failed to send request." << std::endl;
-                        break;
-                    }
-                    break;
-                }
-                default:
-                    isRunnig = false;                    
-                    std::cout<<"Exiting the chat now..."<<std::endl;
-                    break;
-            }
-        } else {
-            std::cout<<"Exiting the chat now..."<<std::endl;
-            isRunnig = false;
-        }
-
-    }
-
-    pthread_cancel(*tp.receptor_pthread);
-    return nullptr; // Agregar declaración de retorno
-}
-
+// Main functions as a the thread to handle server requests.
 int main(int argc, char* argv[]) {
+    std::string choice;
+    bool isRunnig = true;
 
     // Check if the number of command-line arguments is exactly 4
     if (argc != 3) {
@@ -238,19 +231,54 @@ int main(int argc, char* argv[]) {
     // it will send a registration request to the server using the provided client socket.
     registerUser(clientSocket);
 
-    // Create pthread to receive messages
-    pthread_t receptorThread;
-    pthread_create(&receptorThread, NULL, listener, (void*)&clientSocket);
-    ThreadParams tp = {clientSocket, &receptorThread};
+    // Create pthread to handle server responses.
+    pthread_t pthread_response;
+    pthread_create(&pthread_response, NULL, listener, (void*)&clientSocket);
+    ThreadParams tp = {clientSocket, &pthread_response};
 
-    // Create pthread to send messages
-    pthread_t senderThread;
-    pthread_create(&senderThread, NULL, senderFunction, (void*)&tp);
+    printMenu();
 
+    while(isRunnig){
+        std::cout << "What would you like to do? " << std::endl;
+
+        getline(std::cin,choice);
+        int choice_int = stoi(choice);
+        
+        switch (choice_int){
+        case 1:
+            // TODO: Code to send general message.
+            break;
+
+        case 2:
+            // TODO: Code to send direct message.
+            break;
+
+        case 3:
+            // TODO: Code to change user status.
+            break;
+
+        case 4:
+            getActiveUsers(clientSocket);
+            break;
+
+        case 5:
+            // TODO: Code to get user information.
+            break;
+
+        case 6:
+            // TODO: Code to print help menu.
+            break;
+        case 7:
+            isRunnig = false;
+
+        default:
+            std::cout << "Not a valid choice! \n";
+            break;
+        }
+    };
 
     // Wait for the threads to finish
-    pthread_join(receptorThread, NULL);
-    pthread_join(senderThread, NULL);
+    pthread_join(pthread_response, NULL);
 
     // Close the socket
     close(clientSocket);
