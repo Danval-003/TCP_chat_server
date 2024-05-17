@@ -13,6 +13,15 @@
 #include <queue>
 #include <condition_variable>
 
+struct ClientInfo {
+    int socket;            // Socket asociado con el cliente
+    std::string ipAddress; // Dirección IP del cliente en formato legible
+    std::queue<chat::Response>* responses; // Cola de respuestas para el cliente
+    std::mutex responsesMutex; // Mutex para prevenir el acceso simultáneo a la cola de respuestas
+    bool* connected; // Indica si el cliente está conectado
+    std::condition_variable condition; // Variable de condición para notificar al hilo de clientes
+};
+
 
 using json = nlohmann::json;
 
@@ -32,16 +41,6 @@ std::condition_variable messagesCondition;
 std::vector<ClientInfo*> clientsInfo;
 // Mutex to prevent simultaneous access to the clients info vector
 std::mutex clientsInfoMutex;
-
-
-struct ClientInfo {
-    int socket;            // Socket asociado con el cliente
-    std::string ipAddress; // Dirección IP del cliente en formato legible
-    std::queue<chat::Response>* responses; // Cola de respuestas para el cliente
-    std::mutex responsesMutex; // Mutex para prevenir el acceso simultáneo a la cola de respuestas
-    bool* connected; // Indica si el cliente está conectado
-    std::condition_variable condition; // Variable de condición para notificar al hilo de clientes
-};
 
 
 
@@ -184,7 +183,7 @@ void* handleResponseClient(void* arg){
 
     while (info->connected || !info->responses->empty()) {
         // unique lock
-        
+
 
 
         chat::Response response;
