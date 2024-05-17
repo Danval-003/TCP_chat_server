@@ -13,7 +13,6 @@
 #include "./src/sendFunction.h"
 #include <vector>
 using namespace std;
- 
 
 // Set the maximum buffer (message) size to 5000 bytes.
 // This limit is predetermined to ensure sufficient space for data processing,
@@ -182,7 +181,7 @@ void* listener(void* arg) {
 
 // Main functions as a the thread to handle server requests.
 int main(int argc, char* argv[]) {
-    std::string choice;
+    int choice;
     bool isRunnig = true;
 
     // Check if the number of command-line arguments is exactly 4
@@ -239,12 +238,13 @@ int main(int argc, char* argv[]) {
     printMenu();
 
     while(isRunnig){
-        std::cout << "What would you like to do? " << std::endl;
-
-        getline(std::cin,choice);
-        int choice_int = stoi(choice);
         
-        switch (choice_int){
+        std::cout << "What would you like to do? " << std::endl;
+        std::cin.clear();
+		std::cin.ignore(1024, '\n');
+        std::cin >> choice;
+
+        switch (choice){
         case 1:
             // TODO: Code to send general message.
             break;
