@@ -26,6 +26,13 @@ int sendRequest(chat::Request* request, int clientSocket) {
 int sendResponse(chat::Response* response, int clientSocket) {
     // Verify if the response is not null or exceeds the maximum buffer size
     if (response == nullptr || response->ByteSizeLong() > BUFFER_SIZE) {
+        if(response == nullptr){
+            std::cerr << "Response is null" << std::endl;
+        }
+
+        if(response->ByteSizeLong() > BUFFER_SIZE){
+            std::cerr << "Response is too big" << std::endl;
+        }
         return -1;
     }
 
@@ -34,12 +41,14 @@ int sendResponse(chat::Response* response, int clientSocket) {
     // Serialize the response into a string and verify is this operation was successful
     std::string serializedResponse;
     if (!response->SerializeToString(&serializedResponse)) {
+        std::cerr << "Failed to serialize response." << std::endl;
         return -1;
     }
     // Copy the serialized response into the buffer
     strcpy(buffer, serializedResponse.c_str());
     // Send the serialized response to the client and verify is this operation was successful
     if (send(clientSocket, buffer, serializedResponse.size(), 0) < 0) {
+        std::cerr << "Failed to send response." << std::endl;
         return -1;
     }
     return 0;
@@ -73,6 +82,7 @@ int getResponse(chat::Response* response, int clientSocket) {
     char buffer[BUFFER_SIZE];
     // Receive the serialized response from the server and verify is this operation was successful
     if (recv(clientSocket, buffer, BUFFER_SIZE, 0) < 0) {
+        std::cerr << "Failed to receive response." << std::endl;
         return -1;
     }
 
