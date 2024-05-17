@@ -102,6 +102,7 @@ void sendUsersList(ClientInfo* info){
     info->responsesMutex.unlock();
     //Notify the response thread that there are new messages
     info->condition.notify_one();
+
 }
 
 
