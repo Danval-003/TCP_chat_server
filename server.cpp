@@ -103,11 +103,6 @@ void sendUsersList(ClientInfo* info){
     //Notify the response thread that there are new messages
     info->condition.notify_one();
 
-    // Obtain user List into userList(response) to print
-    for (auto user : userList->users()) {
-        std::cout << user.username() << std::endl;
-    }
-
 }
 
 
