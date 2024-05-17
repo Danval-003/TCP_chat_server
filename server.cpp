@@ -119,7 +119,8 @@ void* handleListenClient(void* arg) {
             chat::Response badResponse;
             badResponse.set_operation(chat::REGISTER_USER);
             badResponse.set_status_code(chat::BAD_REQUEST);
-            badResponse.set_message("El usuario ya está registrado.");
+            // Send the message to the client on English
+            badResponse.set_message("User already registered.");
             info->responsesMutex.lock();
             info->responses->push(badResponse);
             info->responsesMutex.unlock();
@@ -129,7 +130,8 @@ void* handleListenClient(void* arg) {
             chat::Response goodResponse;
             goodResponse.set_operation(chat::REGISTER_USER);
             goodResponse.set_status_code(chat::OK);
-            goodResponse.set_message("Usuario encontrado, login exitoso.");
+            // Send the message to the client on English to success with login with existing user
+            goodResponse.set_message("Successfully logged in.");
             info->responsesMutex.lock();
             info->responses->push(goodResponse);
             info->responsesMutex.unlock();
@@ -140,7 +142,8 @@ void* handleListenClient(void* arg) {
         chat::Response goodResponse;
         goodResponse.set_operation(chat::REGISTER_USER);
         goodResponse.set_status_code(chat::OK);
-        goodResponse.set_message("Usuario registrado exitosamente.");
+        // Send the message to the client on English to success with login with new user
+        goodResponse.set_message("Successfully registered.");
         info->responsesMutex.lock();
         info->responses->push(goodResponse);
         info->responsesMutex.unlock();
