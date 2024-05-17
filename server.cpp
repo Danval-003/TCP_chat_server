@@ -41,6 +41,8 @@ std::condition_variable messagesCondition;
 std::vector<ClientInfo*> clientsInfo;
 // Mutex to prevent simultaneous access to the clients info vector
 std::mutex clientsInfoMutex;
+// Save online users on a json list
+json onlineUsers;
 
 
 
@@ -73,6 +75,23 @@ void sendMessage(chat::Request* request, ClientInfo* info, std::string sender){
     messagesMutex.lock();
     messages.push(response_message);
     messagesMutex.unlock();
+}
+
+
+void sendUsersList(ClientInfo* info){
+    chat::Response response;
+    response.set_operation(chat::GET_USERS);
+    response.set_status_code(chat::OK);
+    response.set_message("Lista de usuarios.");
+    chat::UserListResponse* userList = response.mutable_user_list();
+    userList->set_type(chat::ALL);
+    for (int i = 0; i < onlineUsers.size(); i++) {
+        chat::User* user = userList->add_users();
+        user->set_username(onlineUsers[i]);
+    }
+    info->responsesMutex.lock();
+    info->responses->push(response);
+    info->responsesMutex.unlock();
 }
 
 
@@ -148,18 +167,20 @@ void* handleListenClient(void* arg) {
         info->responses->push(goodResponse);
         info->responsesMutex.unlock();
     }
-    
-    
+
+    // Save new online user on onlineUsers list
+    onlineUsers.push_back(userName);
 
     while (info->connected) {
         chat::Request request;
         int status = getRequest(&request, clientSocket);
         if (status == -1) {
-            std::cerr << "Error al recibir la solicitud." << std::endl;
+            // Fail to recive the request, cerr message on english
+            std::cerr << "Fail to recive the request." << std::endl;
             break;
         }
         if (status == 2) {
-            std::cerr << "Cliente desconectado" << std::endl;
+            std::cerr << userName << " Log out." << std::endl;
             break;
         }
         switch (request.operation())
@@ -167,8 +188,19 @@ void* handleListenClient(void* arg) {
         case chat::SEND_MESSAGE:
             sendMessage(&request, info, userName);
             break;
-        
+
+        case chat::GET_USERS:
+            sendUsersList(info);
+            break;
         default:
+            break;
+        }
+    }
+
+    // Delete from the online users list if exists
+    for (int i = 0; i < onlineUsers.size(); i++) {
+        if (onlineUsers[i] == userName) {
+            onlineUsers.erase(i);
             break;
         }
     }
