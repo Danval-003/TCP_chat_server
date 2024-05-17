@@ -19,7 +19,8 @@ struct ClientInfo {
     std::queue<chat::Response>* responses; // Cola de respuestas para el cliente
     std::mutex responsesMutex; // Mutex para prevenir el acceso simultáneo a la cola de respuestas
     bool* connected; // Indica si el cliente está conectado
-    std::condition_variable condition; // Variable de condición para notificar al hilo de clientes
+    std::condition_variable condition; // Var condition to notify the main thread that there are new messages
+    std::mutex notIsEmtpyMutex; // Mutex to prevent simultaneous access to the notIsEmpty variable
 };
 
 
@@ -35,6 +36,8 @@ bool newClients = false;
 std::queue<chat::Response> messages;
 // Mutex to prevent simultaneous access to the messages queue
 std::mutex messagesMutex;
+// Mutex to prevent simultaneous access to the messages queue
+std::mutex messagesMutex2;
 // Create a conditon variable to notify the main thread that there are new messages
 std::condition_variable messagesCondition;
 // Create a vector to store the info to send to the clients
@@ -48,9 +51,11 @@ json onlineUsers;
 
 void* handleThreadMessages(void* arg) {
     while (1) {
-        std::unique_lock<std::mutex> lock(messagesMutex);
+        std::unique_lock<std::mutex> lock(messagesMutex2);
         messagesCondition.wait(lock, [] { return !messages.empty(); });
+
         chat::Response message = messages.front();
+        std::cout << "Mensaje enviado a todos los clientes." << std::endl;
         messages.pop();
         lock.unlock();
 
@@ -60,6 +65,8 @@ void* handleThreadMessages(void* arg) {
             info->responsesMutex.lock();
             info->responses->push(message);
             info->responsesMutex.unlock();
+            // Notify the response thread that there are new messages
+            info->condition.notify_one();
         }
         clientsInfoMutex.unlock();
     }
@@ -75,6 +82,7 @@ void sendMessage(chat::Request* request, ClientInfo* info, std::string sender){
     messagesMutex.lock();
     messages.push(response_message);
     messagesMutex.unlock();
+    messagesCondition.notify_one();
 }
 
 
@@ -92,6 +100,14 @@ void sendUsersList(ClientInfo* info){
     info->responsesMutex.lock();
     info->responses->push(response);
     info->responsesMutex.unlock();
+    //Notify the response thread that there are new messages
+    info->condition.notify_one();
+
+    // Obtain user List into userList(response) to print
+    for (auto user : userList->users()) {
+        std::cout << user.username() << std::endl;
+    }
+
 }
 
 
@@ -143,6 +159,7 @@ void* handleListenClient(void* arg) {
             info->responsesMutex.lock();
             info->responses->push(badResponse);
             info->responsesMutex.unlock();
+            info->condition.notify_one();
             return NULL;
         } else {
             clientsMutex.unlock();
@@ -154,6 +171,7 @@ void* handleListenClient(void* arg) {
             info->responsesMutex.lock();
             info->responses->push(goodResponse);
             info->responsesMutex.unlock();
+            info->condition.notify_one();
         }
     } else{
         clients[userName] = client;
@@ -166,6 +184,7 @@ void* handleListenClient(void* arg) {
         info->responsesMutex.lock();
         info->responses->push(goodResponse);
         info->responsesMutex.unlock();
+        info->condition.notify_one();
     }
 
     // Save new online user on onlineUsers list
@@ -183,6 +202,7 @@ void* handleListenClient(void* arg) {
             std::cerr << userName << " Log out." << std::endl;
             break;
         }
+
         switch (request.operation())
         {
         case chat::SEND_MESSAGE:
@@ -190,6 +210,7 @@ void* handleListenClient(void* arg) {
             break;
 
         case chat::GET_USERS:
+            // Verify if username in request is empty
             sendUsersList(info);
             break;
         default:
@@ -217,11 +238,11 @@ void* handleResponseClient(void* arg){
     int clientSocket = info->socket;
 
     while (info->connected || !info->responses->empty()) {
-        // unique lock
-
-
-
         chat::Response response;
+        // Verify if the response queue is empty, if is empty wait for a new message
+        std::unique_lock<std::mutex> lock(info->notIsEmtpyMutex);
+        info->condition.wait(lock, [info] { return !info->responses->empty() || !(*info->connected); });
+
         info->responsesMutex.lock();
         if (!info->responses->empty()) {
             response = info->responses->front();
@@ -233,6 +254,9 @@ void* handleResponseClient(void* arg){
             std::cerr << "Error al enviar la respuesta." << std::endl;
             break;
         }
+        std:: cout << "Respuesta enviada." << std::endl;
+        std::cout << "Operación: " << response.operation() << std::endl;
+        std::cout << "Ip"<<info->ipAddress  << std::endl;
     }
 
     // Cerrar el socket del cliente
@@ -307,6 +331,13 @@ int main() {
 
         pthread_t responseThread;
         if (pthread_create(&responseThread, NULL, handleResponseClient, (void*)&clientInfo) != 0) {
+            std::cerr << "Error al crear el hilo para el cliente." << std::endl;
+            close(clientSocket);
+            continue; // Continuar aceptando nuevas conexiones
+        }
+
+        pthread_t messageThread;
+        if (pthread_create(&messageThread, NULL, handleThreadMessages, NULL) != 0) {
             std::cerr << "Error al crear el hilo para el cliente." << std::endl;
             close(clientSocket);
             continue; // Continuar aceptando nuevas conexiones
