@@ -10,6 +10,7 @@
 #include <queue>
 #include <mutex>
 #include "constants.h"
+#include "./src/sendFunction.h"
 
 // Set the maximum buffer (message) size to 5000 bytes.
 // This limit is predetermined to ensure sufficient space for data processing,
@@ -77,9 +78,42 @@ void printMenu() {
     printBorder(borderChar, width);
 }
 
-// Register user function (make comments better)
-void registerUser(){
-    //Logic
+// Function to register a new user on the server
+void registerUser(int clientSocket) {
+    // Create a new request object for user registration
+    chat::Request request;
+    request.set_operation(chat::REGISTER_USER); // Specify the operation type as user registration
+
+    // Set up the new user's details in the request
+    auto *newUser = request.mutable_register_user(); // Get a pointer to the user registration part of the request
+    newUser->set_username(TEST_USERNAME); // Set the username for the new user
+
+    // Send the registration request to the server
+    // If the request fails, print an error message and exit the program
+    if (sendRequest(&request, clientSocket) < 0) { // Check if the request sending was successful
+        std::cout << "\nFailed to send request." << std::endl; // Print an error message if sending failed
+        exit(1); // Exit the program with an error code
+    }
+
+    // Create a response object to hold the server's response
+    chat::Response response;
+    if (getResponse(&response, clientSocket) < 0) { // Receive the response from the server
+        std::cout << "\nFailed to receive response." << std::endl; // Print an error message if receiving failed
+        exit(1); // Exit the program with an error code
+    }
+
+    // Handle the server's response
+    if (response.status_code() == chat::BAD_REQUEST) { // Check if the registration failed due to a bad request
+        // Inform the user that the username is already taken
+        std::cout << "\nRegistration failed: The username '" << TEST_USERNAME 
+                  << "' is already taken. Please choose a different username." << std::endl;
+        exit(1); // Exit the program with an error code
+    }
+
+    // Check if the registration was successful
+    if (response.status_code() == chat::OK) { // If the response status is OK
+        std::cout << response.message() << std::endl; // Print the success message from the server
+    }
 }
 
 // Function to continuously listen for messages from the server
@@ -199,6 +233,10 @@ int main(int argc, char* argv[]) {
         std::cerr << "Connection failed." << std::endl;
         return 1;
     }
+
+    // The following line calls the function to register a new user.
+    // it will send a registration request to the server using the provided client socket.
+    registerUser(clientSocket);
 
     // Create pthread to receive messages
     pthread_t receptorThread;
