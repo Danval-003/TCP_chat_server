@@ -254,6 +254,7 @@ void* handleResponseClient(void* arg){
         std:: cout << "Respuesta enviada." << std::endl;
         std::cout << "Operación: " << response.operation() << std::endl;
         std::cout << "Ip"<<info->ipAddress  << std::endl;
+        std::cout << "Ip"<<info->socket  << std::endl;
     }
 
     // Cerrar el socket del cliente
