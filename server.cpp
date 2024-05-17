@@ -11,6 +11,8 @@
 #include "nlohmann/json.hpp"
 #include <mutex>
 #include <queue>
+#include <condition_variable>
+
 
 using json = nlohmann::json;
 
@@ -20,6 +22,16 @@ json clients;
 std::mutex clientsMutex;
 // Bandera para indicar al hilo de clientes que hay nuevos clientes
 bool newClients = false;
+// Queue to store the incoming message from the server (FIFO)
+std::queue<chat::Response> messages;
+// Mutex to prevent simultaneous access to the messages queue
+std::mutex messagesMutex;
+// Create a conditon variable to notify the main thread that there are new messages
+std::condition_variable messagesCondition;
+// Create a vector to store the info to send to the clients
+std::vector<ClientInfo*> clientsInfo;
+// Mutex to prevent simultaneous access to the clients info vector
+std::mutex clientsInfoMutex;
 
 
 struct ClientInfo {
@@ -28,7 +40,42 @@ struct ClientInfo {
     std::queue<chat::Response>* responses; // Cola de respuestas para el cliente
     std::mutex responsesMutex; // Mutex para prevenir el acceso simultáneo a la cola de respuestas
     bool* connected; // Indica si el cliente está conectado
+    std::condition_variable condition; // Variable de condición para notificar al hilo de clientes
 };
+
+
+
+void* handleThreadMessages(void* arg) {
+    while (1) {
+        std::unique_lock<std::mutex> lock(messagesMutex);
+        messagesCondition.wait(lock, [] { return !messages.empty(); });
+        chat::Response message = messages.front();
+        messages.pop();
+        lock.unlock();
+
+        // Enviar el mensaje a todos los clientes
+        clientsInfoMutex.lock();
+        for (ClientInfo* info : clientsInfo) {
+            info->responsesMutex.lock();
+            info->responses->push(message);
+            info->responsesMutex.unlock();
+        }
+        clientsInfoMutex.unlock();
+    }
+}
+
+void sendMessage(chat::Request* request, ClientInfo* info, std::string sender){
+    chat::Response response_message;
+    response_message.set_operation(chat::INCOMING_MESSAGE);
+    response_message.set_status_code(chat::OK);
+    response_message.set_message("Mensaje enviado exitosamente.");
+    response_message.mutable_incoming_message()->set_sender(sender);
+    response_message.mutable_incoming_message()->set_content(request->send_message().content());
+    messagesMutex.lock();
+    messages.push(response_message);
+    messagesMutex.unlock();
+}
+
 
 void* handleListenClient(void* arg) {
     ClientInfo* info = (ClientInfo*)arg;
@@ -67,20 +114,37 @@ void* handleListenClient(void* arg) {
     // Add the user to the clients list, but first verify if the user is already in the list
     clientsMutex.lock();
     if (clients.find(userName) != clients.end()) {
-        clientsMutex.unlock();
-        std::cerr << "El usuario ya está registrado." << std::endl;
-        chat::Response badResponse;
-        badResponse.set_operation(chat::REGISTER_USER);
-        badResponse.set_status_code(chat::BAD_REQUEST);
-        badResponse.set_message("El usuario ya está registrado.");
-        info->responsesMutex.lock();
-        info->responses->push(badResponse);
-        info->responsesMutex.unlock();
-        info->connected = new bool(false);
-        return NULL;
+        // Verify if ip its the same
+        if (clients[userName]["ip"] != info->ipAddress) {
+            clientsMutex.unlock();
+            chat::Response badResponse;
+            badResponse.set_operation(chat::REGISTER_USER);
+            badResponse.set_status_code(chat::BAD_REQUEST);
+            badResponse.set_message("El usuario ya está registrado.");
+            info->responsesMutex.lock();
+            info->responses->push(badResponse);
+            info->responsesMutex.unlock();
+            return NULL;
+        } else {
+            clientsMutex.unlock();
+            chat::Response goodResponse;
+            goodResponse.set_operation(chat::REGISTER_USER);
+            goodResponse.set_status_code(chat::OK);
+            goodResponse.set_message("Usuario encontrado, login exitoso.");
+            info->responsesMutex.lock();
+            info->responses->push(goodResponse);
+            info->responsesMutex.unlock();
+        }
     } else{
         clients[userName] = client;
         clientsMutex.unlock();
+        chat::Response goodResponse;
+        goodResponse.set_operation(chat::REGISTER_USER);
+        goodResponse.set_status_code(chat::OK);
+        goodResponse.set_message("Usuario registrado exitosamente.");
+        info->responsesMutex.lock();
+        info->responses->push(goodResponse);
+        info->responsesMutex.unlock();
     }
     
     
@@ -98,8 +162,8 @@ void* handleListenClient(void* arg) {
         }
         switch (request.operation())
         {
-        case chat::SEND_MESSAGE: 
-            std::cout << "Cliente: " << request.send_message().content() << std::endl;
+        case chat::SEND_MESSAGE:
+            sendMessage(&request, info, userName);
             break;
         
         default:
@@ -119,6 +183,10 @@ void* handleResponseClient(void* arg){
     int clientSocket = info->socket;
 
     while (info->connected || !info->responses->empty()) {
+        // unique lock
+        
+
+
         chat::Response response;
         info->responsesMutex.lock();
         if (!info->responses->empty()) {
@@ -209,6 +277,11 @@ int main() {
             close(clientSocket);
             continue; // Continuar aceptando nuevas conexiones
         }
+
+        // Save the client info
+        clientsInfoMutex.lock();
+        clientsInfo.push_back(&clientInfo);
+        clientsInfoMutex.unlock();
     }
 
     // Cerrar el socket del servidor (nunca llega aquí en un bucle infinito)
