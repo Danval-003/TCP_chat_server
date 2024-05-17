@@ -5,6 +5,7 @@
 int sendRequest(chat::Request* request, int clientSocket) {
     // Verify if the request is not null or exceeds the maximum buffer size
     if (request == nullptr || request->ByteSizeLong() > BUFFER_SIZE) {
+
         return -1;
     }
 
@@ -61,18 +62,23 @@ int getRequest(chat::Request* request, int clientSocket) {
     char buffer[BUFFER_SIZE];
     // Receive the serialized request from the client and verify is this operation was successful and if dont recive any message return 2
     if (recv(clientSocket, buffer, BUFFER_SIZE, 0) <= 0) {
+        std::cout<<"No message received"<<std::endl;
         return 2;
     }
 
     // Parse the serialized request into a string and verify is this operation was successful
     std::string serializedRequest(buffer);
     if (serializedRequest.empty()) {
+        std::cout<<"Empty message received"<<std::endl;
         return -1;
     }
     // Parse the serialized request into a request object and verify is this operation was successful
     if (!request->ParseFromString(serializedRequest)) {
+        std::cout<<"Failed to parse message"<<std::endl;
         return -1;
     }
+
+    std::cout<<"Message received from "<<clientSocket<<std::endl;
     return 0;
 }
 
