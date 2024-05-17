@@ -11,6 +11,7 @@
 #include <mutex>
 #include "constants.h"
 #include "./src/sendFunction.h"
+#include <thread>
 #include <vector>
 using namespace std;
 
@@ -20,7 +21,7 @@ using namespace std;
 #define BUFFER_SIZE 5000
 
 // Boolean to handle waiting status
-bool awaitingResponse = false;
+std::atomic<bool>awaitingResponse{false};
 
 // Queue to store the incoming messages from the server (FIFO)
 std::queue<std::string> messages;
@@ -119,7 +120,6 @@ void registerUser(int clientSocket) {
 }
 
 void getActiveUsers(int clientSocket) {
-
     chat::Request request;
     request.set_operation(chat::GET_USERS); 
 
@@ -154,6 +154,7 @@ void* listener(void* arg) {
             break;
 
         case 3:
+
             if (!response.has_user_list()) {
                 std::cout << "\nNo active users found." << std::endl; 
             } else {
@@ -173,6 +174,8 @@ void* listener(void* arg) {
             // TODO: Code to print help menu.
             break;
         }
+        
+        awaitingResponse = false;
     }
 
     // Return nullptr to indicate the thread's completion
@@ -237,43 +240,49 @@ int main(int argc, char* argv[]) {
 
     printMenu();
 
-    while(isRunnig){
-        
-        std::cout << "What would you like to do? " << std::endl;
+    while (isRunnig) {
+
+        // Wait until awaitingResponse is false
+        while (awaitingResponse) {
+            // Sleep for a short time to avoid busy waiting
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+
+        std::cout << "\nWhat would you like to do? " << std::endl;
         std::cin.clear();
-		std::cin.ignore(1024, '\n');
-        std::cin >> choice;
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-        switch (choice){
-        case 1:
-            // TODO: Code to send general message.
-            break;
+        if (!(std::cin >> choice)) {
+            std::cout << "Invalid input! Please enter a number." << std::endl;
+            continue;
+        }
 
-        case 2:
-            // TODO: Code to send direct message.
-            break;
-
-        case 3:
-            // TODO: Code to change user status.
-            break;
-
-        case 4:
-            getActiveUsers(clientSocket);
-            break;
-
-        case 5:
-            // TODO: Code to get user information.
-            break;
-
-        case 6:
-            // TODO: Code to print help menu.
-            break;
-        case 7:
-            isRunnig = false;
-
-        default:
-            std::cout << "Not a valid choice! \n";
-            break;
+        switch (choice) {
+            case 1:
+                // TODO: Code to send general message.
+                break;
+            case 2:
+                // TODO: Code to send direct message.
+                break;
+            case 3:
+                // TODO: Code to change user status.
+                break;
+            case 4:
+                awaitingResponse = true;
+                getActiveUsers(clientSocket);
+                break;
+            case 5:
+                // TODO: Code to get user information.
+                break;
+            case 6:
+                // TODO: Code to print help menu.
+                break;
+            case 7:
+                isRunnig = false;
+                break;
+            default:
+                std::cout << "Not a valid choice! Please choose a number between 1 and 7." << std::endl;
+                break;
         }
     };
 
