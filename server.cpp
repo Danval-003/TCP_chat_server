@@ -66,7 +66,7 @@ void* handleThreadMessages(void* arg) {
             info->responses->push(message);
             info->responsesMutex.unlock();
             // Notify the response thread that there are new messages
-            info->condition.notify_one();
+            info->condition.notify_all();
         }
         clientsInfoMutex.unlock();
     }
@@ -101,7 +101,7 @@ void sendUsersList(ClientInfo* info){
     info->responses->push(response);
     info->responsesMutex.unlock();
     //Notify the response thread that there are new messages
-    info->condition.notify_one();
+    info->condition.notify_all();
 
 }
 
@@ -154,7 +154,7 @@ void* handleListenClient(void* arg) {
             info->responsesMutex.lock();
             info->responses->push(badResponse);
             info->responsesMutex.unlock();
-            info->condition.notify_one();
+            info->condition.notify_all();
             return NULL;
         } else {
             clientsMutex.unlock();
@@ -166,7 +166,7 @@ void* handleListenClient(void* arg) {
             info->responsesMutex.lock();
             info->responses->push(goodResponse);
             info->responsesMutex.unlock();
-            info->condition.notify_one();
+            info->condition.notify_all();
         }
     } else{
         clients[userName] = client;
@@ -179,7 +179,7 @@ void* handleListenClient(void* arg) {
         info->responsesMutex.lock();
         info->responses->push(goodResponse);
         info->responsesMutex.unlock();
-        info->condition.notify_one();
+        info->condition.notify_all();
     }
 
     // Save new online user on onlineUsers list
