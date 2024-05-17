@@ -185,6 +185,8 @@ void* handleListenClient(void* arg) {
     // Save new online user on onlineUsers list
     onlineUsers.push_back(userName);
 
+    std::cout<<"Nuevo usuario"<< userName<< clientSocket<<std::endl;
+
     while (info->connected) {
         chat::Request request;
         int status = getRequest(&request, clientSocket);
