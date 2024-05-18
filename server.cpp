@@ -62,7 +62,7 @@ void* handleTimerClient(void* arg){
                 }
             }
             // Print
-            std::cout << info->userName << " se desconectó por inactividad." << std::endl;
+            std::cout << info->userName << " se desconectó por inactividad. " << seconds<< std::endl;
         }
     }
     return nullptr;
