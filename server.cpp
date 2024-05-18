@@ -206,7 +206,7 @@ void userInfo(std::string userName, ClientInfo* info){
 
 
     std::string ip = clients[userName]["ip"];
-    std::string username = userName+": " + ip;
+    std::string username = userName+" (" + ip + ")";
     chat::Response response;
     response.set_operation(chat::GET_USERS);
     response.set_status_code(chat::OK);
