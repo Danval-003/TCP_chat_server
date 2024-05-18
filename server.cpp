@@ -178,8 +178,8 @@ void* handleListenClient(void* arg) {
     int clientSocket = info->socket;
 
     chat::Request first_request;
-    int status = getRequest(&first_request, clientSocket);
-    if (status == -1 || status == 2) {
+    int status_0 = getRequest(&first_request, clientSocket);
+    if (status_0 == -1 || status_0 == 2) {
         std::cerr << "Error al recibir la solicitud o cliente desconectado." << std::endl;
         return nullptr;
     }
