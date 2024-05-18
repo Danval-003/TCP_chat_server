@@ -380,7 +380,7 @@ int main() {
 
         std::cout << "Cliente conectado desde " << clientInfo->ipAddress << ":" << clientInfo->socket << "." << std::endl;
 
-        pthread_t clientThread, responseThread;
+        pthread_t clientThread, responseThread, timerThread;
         if (pthread_create(&clientThread, nullptr, handleListenClient, (void*)clientInfo) != 0) {
             std::cerr << "Error al crear el hilo para el cliente." << std::endl;
             close(clientSocket);
@@ -390,6 +390,13 @@ int main() {
 
         if (pthread_create(&responseThread, nullptr, handleResponseClient, (void*)clientInfo) != 0) {
             std::cerr << "Error al crear el hilo para las respuestas del cliente." << std::endl;
+            close(clientSocket);
+            delete clientInfo;
+            continue;
+        }
+
+        if (pthread_create(&timerThread, nullptr, handleTimers, nullptr) != 0) {
+            std::cerr << "Error al crear el hilo para los timers." << std::endl;
             close(clientSocket);
             delete clientInfo;
             continue;
