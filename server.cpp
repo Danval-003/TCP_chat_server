@@ -45,10 +45,9 @@ void* handleTimerClient(void* arg){
     while (info->connected) {
         std::unique_lock<std::mutex> lock(info->timerMutex);
         info->condition.wait_for(lock, std::chrono::seconds(5), [info] { return time(nullptr) - info->lastMessage >= TIMEOUT; });
-        if (time(nullptr) - info->lastMessage >= TIMEOUT) {
-            std::cout << "Cliente " << info->ipAddress << " desconectado por inactividad." << std::endl;
-            info->connected = false;
-            break;
+        double diff = difftime(time(nullptr), info->lastMessage);
+        if ( diff>= TIMEOUT) {
+            std::cout << "Cliente " << info->userName << " desconectado por inactividad."<<diff << std::endl;
         }
     }
     return nullptr;
