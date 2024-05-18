@@ -209,7 +209,7 @@ void* handleResponseClient(void* arg) {
                 std::cerr << "Error al enviar la respuesta." << std::endl;
                 break;
             }
-            std::cout << "Respuesta enviada." << std::endl;
+            std::cout << "Respuesta enviada." << response.message() << std::endl;
         } else {
             lock.unlock();
         }
@@ -309,63 +309,75 @@ void* handleListenClient(void* arg) {
     }
 
 
+    try {
+        while (info->connected) {
+            chat::Request request;
+            int status = getRequest(&request, clientSocket);
+            if (status == -1 || status == 2) {
+                std::cerr << userName << " se desconectó." << std::endl;
+                break;
+            }
 
-    while (info->connected) {
-        chat::Request request;
-        int status = getRequest(&request, clientSocket);
-        if (status == -1 || status == 2) {
-            std::cerr << userName << " se desconectó." << std::endl;
-            break;
-        }
+            // Update last message time
+            {
+                std::lock_guard<std::mutex> lock(info->timerMutex);
+                info->lastMessage = time(nullptr);
+            }
 
-        // Update last message time
-        {
-            std::lock_guard<std::mutex> lock(info->timerMutex);
-            info->lastMessage = time(nullptr);
-        }
+            // change status to original status
+            {
+                std::lock_guard<std::mutex> lock(clientsMutex);
+                clients[userName]["status"] = status ;
+                if (status != chat::UserStatus::OFFLINE) {
+                    info->itsNotOffline.notify_all();
+                }
+            }
 
-        // change status to original status
-        {
-            std::lock_guard<std::mutex> lock(clientsMutex);
-            clients[userName]["status"] = status ;
-            if (status != chat::UserStatus::OFFLINE) {
-                info->itsNotOffline.notify_all();
+            // If status is offline, remove user from online users, else add user to online users
+            {
+                std::lock_guard<std::mutex> lock(onlineUsersMutex);
+                if (status == chat::UserStatus::OFFLINE) {
+                    auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+                    if (it != onlineUsers.end()) {
+                        onlineUsers.erase(it);
+                    }
+                } else {
+                    auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+                    if (it == onlineUsers.end()) {
+                        onlineUsers.push_back(userName);
+                    }
+                }
+            }
+
+            std::cout << "Solicitud recibida de " << userName << "." << std::endl;
+            std::cout << "Operación: " << request.operation() << std::endl;
+
+            switch (request.operation()) {
+                case chat::SEND_MESSAGE:
+                    sendMessage(&request, info, userName);
+                    break;
+                case chat::GET_USERS:
+                    sendUsersList(info);
+                    break;
+                case chat::UPDATE_STATUS:
+                    updateStatus(userName, request, info, &status);
+                    break;
+                default:
+                    break;
             }
         }
 
-        // If status is offline, remove user from online users, else add user to online users
+    }
+    catch (const std::exception& e) {
+        chat::Response response;
+        response.set_status_code(chat::INTERNAL_SERVER_ERROR);
+        response.set_message(e.what());
         {
-            std::lock_guard<std::mutex> lock(onlineUsersMutex);
-            if (status == chat::UserStatus::OFFLINE) {
-                auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
-                if (it != onlineUsers.end()) {
-                    onlineUsers.erase(it);
-                }
-            } else {
-                auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
-                if (it == onlineUsers.end()) {
-                    onlineUsers.push_back(userName);
-                }
-            }
-        }
-
-        std::cout << "Solicitud recibida de " << userName << "." << std::endl;
-        std::cout << "Operación: " << request.operation() << std::endl;
-
-        switch (request.operation()) {
-            case chat::SEND_MESSAGE:
-                sendMessage(&request, info, userName);
-                break;
-            case chat::GET_USERS:
-                sendUsersList(info);
-                break;
-            case chat::UPDATE_STATUS:
-                updateStatus(userName, request, info, &status);
-                break;
-            default:
-                break;
+            std::lock_guard<std::mutex> lock(info->responsesMutex);
+            info->responses->push(response);
         }
     }
+
 
     // Disconnect user
     {
