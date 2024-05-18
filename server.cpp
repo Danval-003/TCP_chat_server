@@ -136,6 +136,7 @@ void updateStatus(std::string userName, chat::Request request, ClientInfo* info)
     response.set_operation(chat::UPDATE_STATUS);
     response.set_status_code(chat::OK);
     response.set_message("Status updated.");
+    std::cout << "Respuesta enviada. Update" << std::endl;
     {
         std::lock_guard<std::mutex> lock(info->responsesMutex);
         info->responses->push(response);
