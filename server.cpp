@@ -77,6 +77,9 @@ void sendMessage(chat::Request* request, ClientInfo* info, const std::string& se
         }
         messagesCondition.notify_all();
     }
+
+    // Print message to console
+    std::cout << "Mensaje de " << sender << " para " << reciper << ": " << request->send_message().content() << std::endl;
 }
 
 void sendUsersList(ClientInfo* info) {
