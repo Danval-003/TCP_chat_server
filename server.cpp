@@ -105,6 +105,14 @@ void sendUsersList(ClientInfo* info) {
 
 
 void updateStatus(std::string userName, chat::Request request, ClientInfo* info){
+    // Verify if exist status in request
+    if (!request.has_update_status()) {
+        std::cerr << "No se especificó el nuevo estado." << std::endl;
+    }
+
+    // print new status
+    std::cout << "Nuevo estado de " << userName << ": " << request.update_status().new_status() << std::endl;
+
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
         clients[userName]["status"] = request.update_status().new_status();
