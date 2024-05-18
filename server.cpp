@@ -42,18 +42,27 @@ void* handleTimers(void* arg){
     while (true) {
         std::lock_guard<std::mutex> lock(clientsInfoMutex);
         for (ClientInfo* info : clientsInfo) {
-            std::lock_guard<std::mutex> timerLock(info->timerMutex);
-            if (time(nullptr) - info->lastMessage > TIMEOUT) {
-                // Change status into clients
-                std::lock_guard<std::mutex> clientsLock(clientsMutex);
-                clients[info->userName]["status"] = chat::UserStatus::OFFLINE;
-                // Remove user from online users
-                auto it = std::find(onlineUsers.begin(), onlineUsers.end(), info->userName);
-                if (it != onlineUsers.end()) {
-                    onlineUsers.erase(it);
+            // Verify if user is not in online users and connected
+            if (std::find(onlineUsers.begin(), onlineUsers.end(), info->userName) == onlineUsers.end() && info->connected) {
+                time_t currentTime = time(nullptr);
+                {
+                    std::lock_guard<std::mutex> timerLock(info->timerMutex);
+                    if (currentTime - info->lastMessage > TIMEOUT) {
+                        info->connected = false;
+                        close(info->socket);
+                        // Remove user from online users
+                        auto it = std::find(onlineUsers.begin(), onlineUsers.end(), info->userName);
+                        if (it != onlineUsers.end()) {
+                            onlineUsers.erase(it);
+                        }
+                        // Change status un clients
+                        {
+                            std::lock_guard<std::mutex> lock(clientsMutex);
+                            clients[info->userName]["status"] = chat::UserStatus::OFFLINE;
+                        }
+                        std::cout << "Cliente " << info->userName << " desconectado por inactividad." << std::endl;
+                    }
                 }
-                // Print message to console
-                std::cout << info->userName << " se desconectó por inactividad." << std::endl;
             }
         }
     }
