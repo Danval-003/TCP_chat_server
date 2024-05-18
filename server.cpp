@@ -28,7 +28,7 @@ struct ClientInfo {
 
 using json = nlohmann::json;
 // Define Timeout with 5 seconds with time
-#define TIMEOUT 4.0
+#define TIMEOUT 5.0
 
 json clients;
 std::mutex clientsMutex;
@@ -40,40 +40,19 @@ std::mutex clientsInfoMutex;
 std::mutex onlineUsersMutex;
 json onlineUsers;
 
-void* handleTimers(void* arg){
-    while (true) {
-        std::lock_guard<std::mutex> lock(clientsInfoMutex);
-        for (ClientInfo* info : clientsInfo) {
-            // mutex onlineUsersMutex
-            std::lock_guard<std::mutex> onlineUsersLock(onlineUsersMutex);
-
-            // Verify if user is not in online users and connected
-            if (std::find(onlineUsers.begin(), onlineUsers.end(), info->userName) == onlineUsers.end() && info->connected) {
-                time_t currentTime = time(nullptr);
-                double diff = difftime(currentTime, info->lastMessage);
-                {
-                    std::lock_guard<std::mutex> timerLock(info->timerMutex);
-                    if (diff > TIMEOUT) {
-                        // Remove user from online users
-                        auto it = std::find(onlineUsers.begin(), onlineUsers.end(), info->userName);
-                        if (it != onlineUsers.end()) {
-                            onlineUsers.erase(it);
-                        }
-                        // Change status un clients
-                        {
-                            std::lock_guard<std::mutex> lock(clientsMutex);
-                            clients[info->userName]["status"] = chat::UserStatus::OFFLINE;
-                        }
-                        std::cout << "Cliente " << info->userName << " desconectado por inactividad." << std::endl;
-                    }
-                }
-            }
+void* handleTimerClient(void* arg){
+    ClientInfo* info = static_cast<ClientInfo*>(arg);
+    while (info->connected) {
+        std::unique_lock<std::mutex> lock(info->timerMutex);
+        info->condition.wait_for(lock, std::chrono::seconds(5), [info] { return time(nullptr) - info->lastMessage >= TIMEOUT; });
+        if (time(nullptr) - info->lastMessage >= TIMEOUT) {
+            std::cout << "Cliente " << info->ipAddress << " desconectado por inactividad." << std::endl;
+            info->connected = false;
+            break;
         }
-
-        // Sleep for 1 second
-        sleep(1);
     }
     return nullptr;
+
 }
 
 
@@ -379,16 +358,11 @@ int main() {
 
     std::cout << "Servidor TCP iniciado. Esperando conexiones..." << std::endl;
 
-    pthread_t messageThread, timerThread;
+    pthread_t messageThread;
     if (pthread_create(&messageThread, nullptr, handleThreadMessages, nullptr) != 0) {
         std::cerr << "Error al crear el hilo para manejar mensajes." << std::endl;
         close(serverSocket);
         return 1;
-    }
-    
-    if (pthread_create(&timerThread, nullptr, handleTimers, nullptr) != 0) {
-    std::cerr << "Error al crear el hilo para los timers." << std::endl;
-
     }
 
     while (true) {
@@ -411,7 +385,7 @@ int main() {
 
         std::cout << "Cliente conectado desde " << clientInfo->ipAddress << ":" << clientInfo->socket << "." << std::endl;
 
-        pthread_t clientThread, responseThread;
+        pthread_t clientThread, responseThread, timerThread;
         if (pthread_create(&clientThread, nullptr, handleListenClient, (void*)clientInfo) != 0) {
             std::cerr << "Error al crear el hilo para el cliente." << std::endl;
             close(clientSocket);
@@ -421,6 +395,13 @@ int main() {
 
         if (pthread_create(&responseThread, nullptr, handleResponseClient, (void*)clientInfo) != 0) {
             std::cerr << "Error al crear el hilo para las respuestas del cliente." << std::endl;
+            close(clientSocket);
+            delete clientInfo;
+            continue;
+        }
+
+        if (pthread_create(&timerThread, nullptr, handleTimerClient, (void*)clientInfo) != 0) {
+            std::cerr << "Error al crear el hilo para el temporizador del cliente." << std::endl;
             close(clientSocket);
             delete clientInfo;
             continue;
