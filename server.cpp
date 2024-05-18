@@ -123,7 +123,7 @@ void* handleListenClient(void* arg) {
     json client;
     client["ip"] = info->ipAddress;
     client["socket"] = clientSocket;
-    client["status"] = "online";
+    client["status"] = chat::UserStatus::ONLINE;
 
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
@@ -183,6 +183,16 @@ void* handleListenClient(void* arg) {
                     std::lock_guard<std::mutex> lock(clientsMutex);
                     clients[userName]["status"] = request.update_status().new_status();
                 }
+                // If new status not online, remove user from online users. And if new status is online, add user to online users.
+                if (request.update_status().new_status() != chat::UserStatus::ONLINE) {
+                    auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+                    if (it != onlineUsers.end()) {
+                        onlineUsers.erase(it);
+                    }
+                } else {
+                    onlineUsers.push_back(userName);
+                }
+
                 // Send response
                 chat::Response response;
                 response.set_operation(chat::UPDATE_STATUS);
