@@ -53,19 +53,30 @@ void* handleThreadMessages(void* arg) {
 }
 
 void sendMessage(chat::Request* request, ClientInfo* info, const std::string& sender) {
-    chat::Response response_message;
-    response_message.set_operation(chat::INCOMING_MESSAGE);
-    response_message.set_status_code(chat::OK);
-    response_message.set_message("Mensaje enviado exitosamente.");
-    response_message.mutable_incoming_message()->set_sender(sender);
-    response_message.mutable_incoming_message()->set_content(request->send_message().content());
-    
-    {
-        std::lock_guard<std::mutex> lock(messagesMutex);
-        messages.push(response_message);
+    // Verify if reciper not empty and If not exists, send message to all
+    std::string reciper = request->send_message().recipient();
+    if (reciper.empty()) {
+        chat::Response response;
+        response.set_operation(chat::SEND_MESSAGE);
+        response.set_status_code(chat::BAD_REQUEST);
+        response.set_message("No recipient specified.");
+        {
+            std::lock_guard<std::mutex> lock(info->responsesMutex);
+            info->responses->push(response);
+        }
+        info->condition.notify_all();
+        return;
+    } else {
+        chat::Response response;
+        response.set_operation(chat::SEND_MESSAGE);
+        response.set_status_code(chat::OK);
+        response.set_message("Message sent.");
+        {
+            std::lock_guard<std::mutex> lock(messagesMutex);
+            messages.push(response);
+        }
+        messagesCondition.notify_all();
     }
-    
-    messagesCondition.notify_one();
 }
 
 void sendUsersList(ClientInfo* info) {
@@ -160,14 +171,15 @@ void* handleListenClient(void* arg) {
             case chat::GET_USERS:
                 sendUsersList(info);
                 break;
+            case chat::UPDATE_STATUS:
+                {
+                    std::lock_guard<std::mutex> lock(clientsMutex);
+                    clients[userName]["status"] = request.update_status().status();
+                }
+                break;
             default:
                 break;
         }
-    }
-
-    {
-        std::lock_guard<std::mutex> lock(clientsMutex);
-        clients.erase(userName);
     }
 
     auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
