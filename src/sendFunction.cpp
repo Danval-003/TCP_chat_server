@@ -75,7 +75,7 @@ int getRequest(chat::Request* request, int clientSocket) {
     // Parse the serialized request into a request object and verify is this operation was successful
     if (!request->ParseFromString(serializedRequest)) {
         std::cout<<"Failed to parse message"<<std::endl;
-        return -1;
+        return 0;
     }
 
     std::cout<<"Message received from "<<clientSocket<<std::endl;

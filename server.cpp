@@ -109,15 +109,19 @@ void updateStatus(std::string userName, chat::Request request, ClientInfo* info)
         std::lock_guard<std::mutex> lock(clientsMutex);
         clients[userName]["status"] = request.update_status().new_status();
     }
-    // If new status not online, remove user from online users. And if new status is online, add user to online users.
-    if (request.update_status().new_status() != chat::UserStatus::ONLINE) {
+    // If new status not online or busy, remove user from online users. And if new status is online or busy, add user to online users.
+    if (request.update_status().new_status() == chat::UserStatus::OFFLINE ){
         auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
         if (it != onlineUsers.end()) {
             onlineUsers.erase(it);
         }
     } else {
-        onlineUsers.push_back(userName);
+        auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+        if (it == onlineUsers.end()) {
+            onlineUsers.push_back(userName);
+        }
     }
+    
 
     // Send response
     chat::Response response;
@@ -172,6 +176,7 @@ void* handleListenClient(void* arg) {
                 std::lock_guard<std::mutex> responsesLock(info->responsesMutex);
                 info->responses->push(goodResponse);
                 info->condition.notify_all();
+                
             }
         } else {
             clients[userName] = client;
