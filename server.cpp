@@ -28,7 +28,7 @@ struct ClientInfo {
 
 using json = nlohmann::json;
 // Define Timeout with 5 seconds with time
-#define TIMEOUT 500.0
+#define TIMEOUT 4.0
 
 json clients;
 std::mutex clientsMutex;
@@ -69,6 +69,9 @@ void* handleTimers(void* arg){
                 }
             }
         }
+
+        // Sleep for 1 second
+        sleep(1);
     }
     return nullptr;
 }
@@ -303,9 +306,19 @@ void* handleListenClient(void* arg) {
         }
     }
 
-    auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
-    if (it != onlineUsers.end()) {
-        onlineUsers.erase(it);
+    // Disconnect user
+    {
+        std::lock_guard<std::mutex> lock(clientsMutex);
+        clients.erase(userName);
+    }
+
+    // Delete user from online users
+    {
+        std::lock_guard<std::mutex> lock(onlineUsersMutex);
+        auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+        if (it != onlineUsers.end()) {
+            onlineUsers.erase(it);
+        }
     }
 
     close(clientSocket);
