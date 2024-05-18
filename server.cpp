@@ -349,8 +349,9 @@ void* handleListenClient(void* arg) {
 
 
     try {
+        chat::Request request;
         while (info->connected) {
-            chat::Request request;
+            request.Clear();
             int status = getRequest(&request, clientSocket);
             if (status == -1 || status == 2) {
                 std::cerr << userName << " se desconectó." << std::endl;
