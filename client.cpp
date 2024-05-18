@@ -154,12 +154,16 @@ void* listener(void* arg) {
             break;
 
         case 3:
-
+            // Check if the response contains a user list
             if (!response.has_user_list()) {
+                // If no user list is found, print a message indicating no active users
                 std::cout << "\nNo active users found." << std::endl; 
             } else {
+                // If a user list is found, retrieve it
                 const auto &user_list = response.user_list();
                 std::cout << "Active users:" << std::endl;
+                
+                // Iterate through the users in the user list and print each username
                 for (const auto& user : user_list.users()) {
                     std::cout << user.username() << std::endl;
                 }
@@ -259,12 +263,8 @@ int main(int argc, char* argv[]) {
         if (std::all_of(choiceStr.begin(), choiceStr.end(), ::isdigit)) {
             choice = std::stoi(choiceStr);
         } else {
-            std::cout << "Not a valid choice! Please choose a number between 1 and 7." << std::endl;
-            continue;
+            std::cout << "Not a digit." << std::endl;
         }
-
-
-
 
         switch (choice) {
             case 1:
@@ -288,9 +288,11 @@ int main(int argc, char* argv[]) {
                 break;
             case 7:
                 isRunnig = false;
-                break;
+                std::cout << "Exiting now..." << std::endl;
+                close(clientSocket);
+                exit(0);
             default:
-                std::cout << "Not a valid choice! Please choose a number between 1 and 7." << std::endl;
+                std::cout << "Not a valid choice!" << std::endl;
                 break;
         }
         choiceStr.clear();
