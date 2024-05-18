@@ -220,6 +220,7 @@ void userInfo(std::string userName, ClientInfo* info){
         std::lock_guard<std::mutex> lock(info->responsesMutex);
         info->responses->push(response);
     }
+    info->condition.notify_all();
 }
 
 void updateStatus(std::string userName, chat::Request request, ClientInfo* info, int* status){
