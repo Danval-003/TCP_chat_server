@@ -190,6 +190,21 @@ void sendUsersList(ClientInfo* info) {
 }
 
 void userInfo(std::string userName, ClientInfo* info){
+    // Verify if userName exists into clients
+    if (clients.find(userName) == clients.end()) {
+        chat::Response response;
+        response.set_operation(chat::GET_USERS);
+        response.set_status_code(chat::BAD_REQUEST);
+        response.set_message("User not found.");
+        {
+            std::lock_guard<std::mutex> lock(info->responsesMutex);
+            info->responses->push(response);
+        }
+        info->condition.notify_all();
+        return;
+    }
+
+
     std::string ip = clients[userName]["ip"];
     std::string username = userName+": " + ip;
     chat::Response response;
