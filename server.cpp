@@ -12,6 +12,7 @@
 #include <mutex>
 #include <queue>
 #include <condition_variable>
+#include <time.h>
 
 struct ClientInfo {
     int socket;
@@ -20,9 +21,13 @@ struct ClientInfo {
     std::mutex responsesMutex;
     bool connected;
     std::condition_variable condition;
+    time_t lastMessage;
+    std::mutex timerMutex;
+    std::string userName;
 };
 
 using json = nlohmann::json;
+#define TIMEOUT 5
 
 json clients;
 std::mutex clientsMutex;
@@ -32,6 +37,29 @@ std::condition_variable messagesCondition;
 std::vector<ClientInfo*> clientsInfo;
 std::mutex clientsInfoMutex;
 json onlineUsers;
+
+void* handleTimers(void* arg){
+    while (true) {
+        std::lock_guard<std::mutex> lock(clientsInfoMutex);
+        for (ClientInfo* info : clientsInfo) {
+            std::lock_guard<std::mutex> timerLock(info->timerMutex);
+            if (time(nullptr) - info->lastMessage > TIMEOUT) {
+                // Change status into clients
+                std::lock_guard<std::mutex> clientsLock(clientsMutex);
+                clients[info->userName]["status"] = chat::UserStatus::OFFLINE;
+                // Remove user from online users
+                auto it = std::find(onlineUsers.begin(), onlineUsers.end(), info->userName);
+                if (it != onlineUsers.end()) {
+                    onlineUsers.erase(it);
+                }
+                // Print message to console
+                std::cout << info->userName << " se desconectó por inactividad." << std::endl;
+            }
+        }
+    }
+    return nullptr;
+}
+
 
 void* handleThreadMessages(void* arg) {
     while (true) {
@@ -52,9 +80,7 @@ void* handleThreadMessages(void* arg) {
     return nullptr;
 }
 
-void sendMessage(chat::Request* request, ClientInfo* info, const std::string& sender) {
-
-    
+void sendMessage(chat::Request* request, ClientInfo* info, const std::string& sender) {    
     // Verify if reciper not empty and If not exists, send message to all
     std::string reciper = request->send_message().recipient();
         // Print message to console
@@ -104,7 +130,7 @@ void sendUsersList(ClientInfo* info) {
 }
 
 
-void updateStatus(std::string userName, chat::Request request, ClientInfo* info){
+void updateStatus(std::string userName, chat::Request request, ClientInfo* info, int* status){
     // Verify if exist status in request
     if (!request.has_update_status()) {
         std::cerr << "No se especificó el nuevo estado." << std::endl;
@@ -112,6 +138,9 @@ void updateStatus(std::string userName, chat::Request request, ClientInfo* info)
 
     // print new status
     std::cout << "Nuevo estado de " << userName << ": " << request.update_status().new_status() << std::endl;
+    // Update status
+    int newstatus = request.update_status().new_status();
+    status = &newstatus;
 
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
@@ -165,6 +194,7 @@ void* handleListenClient(void* arg) {
     client["ip"] = info->ipAddress;
     client["socket"] = clientSocket;
     client["status"] = chat::UserStatus::ONLINE;
+    int status = chat::UserStatus::ONLINE;
 
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
@@ -183,6 +213,7 @@ void* handleListenClient(void* arg) {
                 goodResponse.set_operation(chat::REGISTER_USER);
                 goodResponse.set_status_code(chat::OK);
                 goodResponse.set_message("Successfully logged in.");
+                status = clients[userName]["status"];
                 std::lock_guard<std::mutex> responsesLock(info->responsesMutex);
                 info->responses->push(goodResponse);
                 info->condition.notify_all();
@@ -200,6 +231,12 @@ void* handleListenClient(void* arg) {
         }
     }
 
+    // Create timer
+    {
+        std::lock_guard<std::mutex> lock(info->timerMutex);
+        info->lastMessage = time(nullptr);
+    }
+
     onlineUsers.push_back(userName);
 
     while (info->connected) {
@@ -208,6 +245,31 @@ void* handleListenClient(void* arg) {
         if (status == -1 || status == 2) {
             std::cerr << userName << " se desconectó." << std::endl;
             break;
+        }
+
+        // Update last message time
+        {
+            std::lock_guard<std::mutex> lock(info->timerMutex);
+            info->lastMessage = time(nullptr);
+        }
+
+        // change status to original status
+        {
+            std::lock_guard<std::mutex> lock(clientsMutex);
+            clients[userName]["status"] = status ;
+        }
+
+        // If status is offline, remove user from online users
+        if (status == chat::UserStatus::OFFLINE) {
+            auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+            if (it != onlineUsers.end()) {
+                onlineUsers.erase(it);
+            }
+        } else {
+            auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+            if (it == onlineUsers.end()) {
+                onlineUsers.push_back(userName);
+            }
         }
 
         std::cout << "Solicitud recibida de " << userName << "." << std::endl;
@@ -221,7 +283,7 @@ void* handleListenClient(void* arg) {
                 sendUsersList(info);
                 break;
             case chat::UPDATE_STATUS:
-                updateStatus(userName, request, info);
+                updateStatus(userName, request, info, &status);
                 break;
             default:
                 break;
