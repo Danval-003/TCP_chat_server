@@ -141,6 +141,7 @@ void updateStatus(std::string userName, chat::Request request, ClientInfo* info)
         std::lock_guard<std::mutex> lock(info->responsesMutex);
         info->responses->push(response);
     }
+    info->condition.notify_all();
 }
 
 void* handleListenClient(void* arg) {
