@@ -100,17 +100,6 @@ void sendMessage(chat::Request* request, ClientInfo* info, const std::string& se
     if (reciper.empty()) {
         chat::Response response;
         response.set_operation(chat::SEND_MESSAGE);
-        response.set_status_code(chat::BAD_REQUEST);
-        response.set_message("No recipient specified.");
-        {
-            std::lock_guard<std::mutex> lock(info->responsesMutex);
-            info->responses->push(response);
-        }
-        info->condition.notify_all();
-        return;
-    } else {
-        chat::Response response;
-        response.set_operation(chat::SEND_MESSAGE);
         response.set_status_code(chat::OK);
         response.set_message("Message sent.");
         {
@@ -118,6 +107,44 @@ void sendMessage(chat::Request* request, ClientInfo* info, const std::string& se
             messages.push(response);
         }
         messagesCondition.notify_all();
+    } else {
+        // Verify if reciper exists
+        {
+            std::lock_guard<std::mutex> lock(clientsMutex);
+            if (clients.find(reciper) == clients.end()) {
+                chat::Response response;
+                response.set_operation(chat::SEND_MESSAGE);
+                response.set_status_code(chat::BAD_REQUEST);
+                response.set_message("User not found.");
+                {
+                    std::lock_guard<std::mutex> lock(info->responsesMutex);
+                    info->responses->push(response);
+                }
+                info->condition.notify_all();
+                return;
+            }
+        }
+
+        // Send message to reciper
+        chat::Response response;
+        response.set_operation(chat::SEND_MESSAGE);
+        response.set_status_code(chat::OK);
+        response.set_message("Message sent.");
+        chat::IncomingMessageResponse* msg = response.mutable_incoming_message();
+        msg->set_content(request->send_message().content());
+        msg->set_sender(sender);
+        {
+            std::lock_guard<std::mutex> lock(clientsInfoMutex);
+            for (ClientInfo* clientInfo : clientsInfo) {
+                if (clientInfo->userName == reciper) {
+                    std::lock_guard<std::mutex> lock(clientInfo->responsesMutex);
+                    clientInfo->responses->push(response);
+                    clientInfo->condition.notify_all();
+                    break;
+                }
+            }
+        }
+
     }
 }
 
