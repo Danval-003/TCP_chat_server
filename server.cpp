@@ -183,6 +183,15 @@ void* handleListenClient(void* arg) {
                     std::lock_guard<std::mutex> lock(clientsMutex);
                     clients[userName]["status"] = request.update_status().new_status();
                 }
+                // Send response
+                chat::Response response;
+                response.set_operation(chat::UPDATE_STATUS);
+                response.set_status_code(chat::OK);
+                response.set_message("Status updated.");
+                {
+                    std::lock_guard<std::mutex> lock(info->responsesMutex);
+                    info->responses->push(response);
+                }
                 break;
             default:
                 break;
