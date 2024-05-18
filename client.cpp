@@ -23,8 +23,14 @@ using namespace std;
 // Boolean to handle waiting status
 std::atomic<bool>awaitingResponse{false};
 
-// Queue to store the incoming messages from the server (FIFO)
+// Queue to store the incoming messages from the server (FIFO),
+// to be used only on broadcasting and private msg. on the
+// general chat.
 std::queue<std::string> messages;
+
+// Stack that contains possible user status.
+// ONLY USED WHEN PRINTING.
+std::vector<std::string> user_status = {"Online", "Busy", "Offline"};
 
 struct ThreadParams {
     int clientSocket;
@@ -154,7 +160,7 @@ void handleBroadcasting(int clientSocket) {
 
     // Set the content of the message in the request
     requestmsg->set_content(msg);
-    
+
     // Send the request to the server using the specified client socket
     if (sendRequest(&request, clientSocket) < 0) {
         // If sending the request fails, print an error message and exit the program
@@ -164,6 +170,77 @@ void handleBroadcasting(int clientSocket) {
 
     // Clear the message string after sending the request
     msg.clear();
+};
+
+// Function to handle status change for a client
+void handleStatusChange(int clientSocket) {
+    // Declare variables for user input
+    std::string choice_str;
+    int choice;
+
+    // Display available status options
+    std::cout << "Choose your status:\n";
+    for (size_t i = 0; i < user_status.size(); ++i) {
+        std::cout << (i + 1) << ". " << user_status[i] << std::endl;
+    }
+    
+    if (choice_str.empty()) {    
+        // Prompt the user to select a status
+        std::cout << "\nEnter the number corresponding to your desired status:\n";
+        // Read user input
+        std::getline(std::cin, choice_str);
+    }
+
+    // Check if the input is a valid digit
+    if (std::all_of(choice_str.begin(), choice_str.end(), ::isdigit)) {
+        // Convert string to integer
+        choice = std::stoi(choice_str);
+        // Adjust for 0-based indexing
+        choice -= 1;
+    } else {
+        // Notify the user of invalid input
+        std::cout << "Invalid input. Please enter a number.\n";
+    }
+
+    // Create a request object
+    chat::Request request;
+
+    // Set the operation type to update status in the request
+    request.set_operation(chat::Operation::UPDATE_STATUS);
+
+    // Get a pointer to the mutable update_status field in the request
+    auto *request_status = request.mutable_update_status();
+
+    // Set the user's chosen status based on their input
+    switch (choice){
+    case 0:
+        request_status -> set_new_status(chat::UserStatus::ONLINE);
+        break;
+
+    case 1:
+        request_status -> set_new_status(chat::UserStatus::BUSY);
+        break;
+
+    case 2:
+        request_status -> set_new_status(chat::UserStatus::OFFLINE);
+        break;
+
+    default:
+        // Notify the user of an invalid status choice
+        std::cout << "Invalid status choice.\n";
+        return;
+    }
+
+    // Send the request to the server using the specified client socket
+    if (sendRequest(&request, clientSocket) < 0) {
+        // If sending the request fails, print an error message and exit the program
+        std::cout << "\nError: Unable to send the request." << std::endl;
+        exit(1);
+    }
+
+    // Clear variables
+    choice_str.clear();
+    choice = 0;
 };
 
 // Function to continuously listen responses from server
@@ -180,13 +257,12 @@ void* listener(void* arg) {
         }
 
         switch (response.operation()){
-
         case 1:
             // TODO: Code to send direct message.
             break;
 
         case 2:
-            // TODO: Code to change user status.
+            std::cout << response.message() << std::endl;
             break;
 
         case 3:
@@ -299,30 +375,36 @@ int main(int argc, char* argv[]) {
         if (std::all_of(choiceStr.begin(), choiceStr.end(), ::isdigit)) {
             choice = std::stoi(choiceStr);
         } else {
-            std::cout << "Not a digit." << std::endl;
+            std::cout << "Invalid input. Please enter a number.\n";
         }
-
+        
         switch (choice) {
             case 1:
-                awaitingResponse = true;
                 handleBroadcasting(clientSocket);
                 break;
+
             case 2:
                 // TODO: Code to send direct message.
                 break;
+
             case 3:
-                // TODO: Code to change user status.
+                awaitingResponse = true;
+                handleStatusChange(clientSocket);
                 break;
+
             case 4:
                 awaitingResponse = true;
                 getActiveUsers(clientSocket);
                 break;
+
             case 5:
                 // TODO: Code to get user information.
                 break;
+
             case 6:
                 // TODO: Code to print help menu.
                 break;
+
             case 7:
                 isRunnig = false;
                 std::cout << "Exiting now..." << std::endl;
@@ -332,6 +414,7 @@ int main(int argc, char* argv[]) {
                 std::cout << "Not a valid choice!" << std::endl;
                 break;
         }
+
         choiceStr.clear();
         choice = 0;
     };
