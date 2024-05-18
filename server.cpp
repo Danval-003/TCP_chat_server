@@ -174,7 +174,7 @@ void* handleListenClient(void* arg) {
             case chat::UPDATE_STATUS:
                 {
                     std::lock_guard<std::mutex> lock(clientsMutex);
-                    clients[userName]["status"] = request.update_status().status();
+                    clients[userName]["status"] = request.update_status().new_status();
                 }
                 break;
             default:
