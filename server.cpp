@@ -54,10 +54,11 @@ void* handleThreadMessages(void* arg) {
 
 void sendMessage(chat::Request* request, ClientInfo* info, const std::string& sender) {
 
-    // Print message to console
-    std::cout << "Mensaje de " << sender << " para " << reciper << ": " << request->send_message().content() << std::endl;
+    
     // Verify if reciper not empty and If not exists, send message to all
     std::string reciper = request->send_message().recipient();
+        // Print message to console
+    std::cout << "Mensaje de " << sender << " para " << reciper << ": " << request->send_message().content() << std::endl;
     if (reciper.empty()) {
         chat::Response response;
         response.set_operation(chat::SEND_MESSAGE);
