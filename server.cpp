@@ -44,8 +44,16 @@ json onlineUsers;
 void* handleTimerClient(void* arg){
     ClientInfo* info = static_cast<ClientInfo*>(arg);
     while (info->connected) {
-        std::unique_lock<std::mutex> lock(info->timerMutex);
-        info->itsNotOffline.wait_for(lock, std::chrono::seconds(static_cast<int64_t>(TIMEOUT)), [info] { return difftime(time(nullptr), info->lastMessage) >= TIMEOUT; });
+        int status = chat::UserStatus::OFFLINE;
+        {
+            std::lock_guard<std::mutex> lock(clientsMutex);
+            status = clients[info->userName]["status"];
+        }
+        // Wait if status is offline
+        if (status == chat::UserStatus::OFFLINE) {
+            std::unique_lock<std::mutex> lock(info->timerMutex);
+            info->itsNotOffline.wait(lock);
+        }
         double seconds = difftime(time(nullptr), info->lastMessage);
         if (seconds >= TIMEOUT) {
             // Change status to offline
