@@ -450,6 +450,15 @@ void* handleListenClient(void* arg) {
         }
     }
 
+    // Delete user from clients info
+    {
+        std::lock_guard<std::mutex> lock(clientsInfoMutex);
+        auto it = std::find(clientsInfo.begin(), clientsInfo.end(), info);
+        if (it != clientsInfo.end()) {
+            clientsInfo.erase(it);
+        }
+    }
+
     close(clientSocket);
     return nullptr;
 }
