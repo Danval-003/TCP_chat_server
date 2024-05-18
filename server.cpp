@@ -103,6 +103,33 @@ void sendUsersList(ClientInfo* info) {
     info->condition.notify_all();
 }
 
+
+void updateStatus(std::string userName, chat::Request request, ClientInfo* info){
+    {
+        std::lock_guard<std::mutex> lock(clientsMutex);
+        clients[userName]["status"] = request.update_status().new_status();
+    }
+    // If new status not online, remove user from online users. And if new status is online, add user to online users.
+    if (request.update_status().new_status() != chat::UserStatus::ONLINE) {
+        auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+        if (it != onlineUsers.end()) {
+            onlineUsers.erase(it);
+        }
+    } else {
+        onlineUsers.push_back(userName);
+    }
+
+    // Send response
+    chat::Response response;
+    response.set_operation(chat::UPDATE_STATUS);
+    response.set_status_code(chat::OK);
+    response.set_message("Status updated.");
+    {
+        std::lock_guard<std::mutex> lock(info->responsesMutex);
+        info->responses->push(response);
+    }
+}
+
 void* handleListenClient(void* arg) {
     ClientInfo* info = static_cast<ClientInfo*>(arg);
     int clientSocket = info->socket;
@@ -179,29 +206,7 @@ void* handleListenClient(void* arg) {
                 sendUsersList(info);
                 break;
             case chat::UPDATE_STATUS:
-                {
-                    std::lock_guard<std::mutex> lock(clientsMutex);
-                    clients[userName]["status"] = request.update_status().new_status();
-                }
-                // If new status not online, remove user from online users. And if new status is online, add user to online users.
-                if (request.update_status().new_status() != chat::UserStatus::ONLINE) {
-                    auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
-                    if (it != onlineUsers.end()) {
-                        onlineUsers.erase(it);
-                    }
-                } else {
-                    onlineUsers.push_back(userName);
-                }
-
-                // Send response
-                chat::Response response;
-                response.set_operation(chat::UPDATE_STATUS);
-                response.set_status_code(chat::OK);
-                response.set_message("Status updated.");
-                {
-                    std::lock_guard<std::mutex> lock(info->responsesMutex);
-                    info->responses->push(response);
-                }
+                updateStatus(userName, request, info);
                 break;
             default:
                 break;
