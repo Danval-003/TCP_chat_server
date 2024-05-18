@@ -84,6 +84,7 @@ int getRequest(chat::Request* request, int clientSocket) {
 
 // Define function to obtain response from server
 int getResponse(chat::Response* response, int clientSocket) {
+    response->Clear();
     // Create a buffer to store the serialized response
     char buffer[BUFFER_SIZE];
     // Receive the serialized response from the server and verify is this operation was successful
@@ -99,7 +100,7 @@ int getResponse(chat::Response* response, int clientSocket) {
     }
     // Parse the serialized response into a response object and verify is this operation was successful
     if (!response->ParseFromString(serializedResponse)) {
-        return -1;
+        return 0;
     }
     return 0;
 }
