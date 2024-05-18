@@ -120,15 +120,51 @@ void registerUser(int clientSocket) {
 }
 
 void getActiveUsers(int clientSocket) {
+    // Create a request object
     chat::Request request;
+
+    // Set the operation type to GET_USERS in the request
     request.set_operation(chat::GET_USERS); 
 
-    if (sendRequest(&request, clientSocket) < 0) { 
+    // Send the request to the server using the specified client socket
+    if (sendRequest(&request, clientSocket) < 0) {
+        // If sending the request fails, print an error message and exit the program
         std::cout << "\nFailed to send request." << std::endl; 
         exit(1); 
     }
-
 }
+
+void handleBroadcasting(int clientSocket) {
+    std::string msg;
+
+    // Prompt the user to enter the message they want to broadcast
+    std::cout << "Enter the message you'd like to broadcast: " << std::endl;
+
+    // Read the entire line of input from the user
+    std::getline(std::cin, msg);
+
+    // Create a request object
+    chat::Request request;
+
+    // Set the operation type to SEND_MESSAGE in the request
+    request.set_operation(chat::Operation::SEND_MESSAGE);
+
+    // Get a pointer to the mutable send_message field in the request
+    auto *requestmsg = request.mutable_send_message();
+
+    // Set the content of the message in the request
+    requestmsg->set_content(msg);
+    
+    // Send the request to the server using the specified client socket
+    if (sendRequest(&request, clientSocket) < 0) {
+        // If sending the request fails, print an error message and exit the program
+        std::cout << "\nError: Unable to send the request." << std::endl;
+        exit(1);
+    }
+
+    // Clear the message string after sending the request
+    msg.clear();
+};
 
 // Function to continuously listen responses from server
 void* listener(void* arg) {
@@ -139,7 +175,7 @@ void* listener(void* arg) {
         chat::Response response;
 
         if (getResponse(&response, clientSocket) < 0) {
-            std::cout << "\nFailed to receive response." << std::endl; 
+            std::cout << "\nError: Unable to send the request." << std::endl;
             exit(1);
         }
 
@@ -268,7 +304,8 @@ int main(int argc, char* argv[]) {
 
         switch (choice) {
             case 1:
-                // TODO: Code to send general message.
+                awaitingResponse = true;
+                handleBroadcasting(clientSocket);
                 break;
             case 2:
                 // TODO: Code to send direct message.
