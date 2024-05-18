@@ -74,7 +74,8 @@ void* handleTimerClient(void* arg){
 
 
 void* handleThreadMessages(void* arg) {
-    while (true) {
+    try {
+         while (true) {
         std::unique_lock<std::mutex> lock(messagesMutex);
         messagesCondition.wait(lock, [] { return !messages.empty(); });
 
@@ -87,6 +88,14 @@ void* handleThreadMessages(void* arg) {
             std::lock_guard<std::mutex> responsesLock(info->responsesMutex);
             info->responses->push(message);
             info->condition.notify_all();
+        }
+    }
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        // Try to create a new thread
+        pthread_t messageThread;
+        if (pthread_create(&messageThread, nullptr, handleThreadMessages, nullptr) != 0) {
+            std::cerr << "Error al crear el hilo para manejar mensajes." << std::endl;
         }
     }
     return nullptr;
