@@ -45,7 +45,7 @@ void* handleTimerClient(void* arg){
     ClientInfo* info = static_cast<ClientInfo*>(arg);
     while (info->connected) {
         std::unique_lock<std::mutex> lock(info->timerMutex);
-        info->itsNotOffline.wait_for(lock, std::chrono::seconds(TIMEOUT), [info] { return difftime(time(nullptr), info->lastMessage) >= TIMEOUT; });
+        info->itsNotOffline.wait_for(lock, std::chrono::seconds(static_cast<int64_t>(TIMEOUT)), [info] { return difftime(time(nullptr), info->lastMessage) >= TIMEOUT; });
         double seconds = difftime(time(nullptr), info->lastMessage);
         if (seconds >= TIMEOUT) {
             // Change status to offline
