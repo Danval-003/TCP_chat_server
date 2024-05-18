@@ -129,12 +129,13 @@ void sendUsersList(ClientInfo* info) {
     chat::UserListResponse* userList = response.mutable_user_list();
     userList->set_type(chat::ALL);
 
+    // Get all online users
     {
-        std::lock_guard<std::mutex> lock(clientsMutex);
-        for (auto it = clients.begin(); it != clients.end(); ++it) {
+        std::lock_guard<std::mutex> lock(onlineUsersMutex);
+        for (const std::string& userName : onlineUsers) {
             chat::User* user = userList->add_users();
-            user->set_username(it.key());
-            user->set_status(it.value()["status"]);
+            user->set_username(userName);
+            user->set_status(clients[userName]["status"]);
         }
     }
 
