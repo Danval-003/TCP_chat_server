@@ -28,7 +28,7 @@ struct ClientInfo {
 
 using json = nlohmann::json;
 // Define Timeout with 5 seconds with time
-#define TIMEOUT 5.0
+#define TIMEOUT 500.0
 
 json clients;
 std::mutex clientsMutex;
@@ -37,12 +37,16 @@ std::mutex messagesMutex;
 std::condition_variable messagesCondition;
 std::vector<ClientInfo*> clientsInfo;
 std::mutex clientsInfoMutex;
+std::mutex onlineUsersMutex;
 json onlineUsers;
 
 void* handleTimers(void* arg){
     while (true) {
         std::lock_guard<std::mutex> lock(clientsInfoMutex);
         for (ClientInfo* info : clientsInfo) {
+            // mutex onlineUsersMutex
+            std::lock_guard<std::mutex> onlineUsersLock(onlineUsersMutex);
+
             // Verify if user is not in online users and connected
             if (std::find(onlineUsers.begin(), onlineUsers.end(), info->userName) == onlineUsers.end() && info->connected) {
                 time_t currentTime = time(nullptr);
