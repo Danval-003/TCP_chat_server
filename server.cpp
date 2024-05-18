@@ -74,7 +74,8 @@ void* handleTimerClient(void* arg){
 
 
 void* handleThreadMessages(void* arg) {
-    while (true) {
+    try {
+         while (true) {
         std::unique_lock<std::mutex> lock(messagesMutex);
         messagesCondition.wait(lock, [] { return !messages.empty(); });
 
@@ -87,6 +88,14 @@ void* handleThreadMessages(void* arg) {
             std::lock_guard<std::mutex> responsesLock(info->responsesMutex);
             info->responses->push(message);
             info->condition.notify_all();
+        }
+    }
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        // Try to create a new thread
+        pthread_t messageThread;
+        if (pthread_create(&messageThread, nullptr, handleThreadMessages, nullptr) != 0) {
+            std::cerr << "Error al crear el hilo para manejar mensajes." << std::endl;
         }
     }
     return nullptr;
@@ -180,6 +189,39 @@ void sendUsersList(ClientInfo* info) {
     info->condition.notify_all();
 }
 
+void userInfo(std::string userName, ClientInfo* info){
+    // Verify if userName exists into clients
+    if (clients.find(userName) == clients.end()) {
+        chat::Response response;
+        response.set_operation(chat::GET_USERS);
+        response.set_status_code(chat::BAD_REQUEST);
+        response.set_message("User not found.");
+        {
+            std::lock_guard<std::mutex> lock(info->responsesMutex);
+            info->responses->push(response);
+        }
+        info->condition.notify_all();
+        return;
+    }
+
+
+    std::string ip = clients[userName]["ip"];
+    std::string username = userName+" (" + ip + ")";
+    chat::Response response;
+    response.set_operation(chat::GET_USERS);
+    response.set_status_code(chat::OK);
+    response.set_message("Lista de usuarios.");
+    chat::UserListResponse* userList = response.mutable_user_list();
+    userList->set_type(chat::SINGLE);
+    chat::User* user = userList->add_users();
+    user->set_username(username);
+    user->set_status(clients[userName]["status"]);
+    {
+        std::lock_guard<std::mutex> lock(info->responsesMutex);
+        info->responses->push(response);
+    }
+    info->condition.notify_all();
+}
 
 void updateStatus(std::string userName, chat::Request request, ClientInfo* info, int* status){
     // Verify if exist status in request
@@ -397,7 +439,12 @@ void* handleListenClient(void* arg) {
                     sendMessage(&request, info, userName);
                     break;
                 case chat::GET_USERS:
-                    sendUsersList(info);
+                    // Verify if username in request is empty
+                    if (request.get_users().username().empty()) {
+                        sendUsersList(info);
+                    } else {
+                        userInfo(request.get_users().username(), info);
+                    }
                     break;
                 case chat::UPDATE_STATUS:
                     updateStatus(userName, request, info, &status);
@@ -447,6 +494,15 @@ void* handleListenClient(void* arg) {
         auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
         if (it != onlineUsers.end()) {
             onlineUsers.erase(it);
+        }
+    }
+
+    // Delete user from clients info
+    {
+        std::lock_guard<std::mutex> lock(clientsInfoMutex);
+        auto it = std::find(clientsInfo.begin(), clientsInfo.end(), info);
+        if (it != clientsInfo.end()) {
+            clientsInfo.erase(it);
         }
     }
 
