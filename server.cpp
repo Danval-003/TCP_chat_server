@@ -44,15 +44,10 @@ json onlineUsers;
 void* handleTimerClient(void* arg){
     ClientInfo* info = static_cast<ClientInfo*>(arg);
     while (info->connected) {
-        int status = chat::UserStatus::OFFLINE;
+        // Wait if user is offline
         {
-            std::lock_guard<std::mutex> lock(clientsMutex);
-            status = clients[info->userName]["status"];
-        }
-        // Wait if status is offline
-        if (status == chat::UserStatus::OFFLINE) {
             std::unique_lock<std::mutex> lock(info->timerMutex);
-            info->itsNotOffline.wait(lock);
+            info->itsNotOffline.wait(lock, [info] { return info->connected && clients[info->userName]["status"] != chat::UserStatus::OFFLINE; });
         }
         double seconds = difftime(time(nullptr), info->lastMessage);
         if (seconds >= TIMEOUT) {
@@ -194,6 +189,37 @@ void updateStatus(std::string userName, chat::Request request, ClientInfo* info,
     info->condition.notify_all();
 }
 
+
+
+void* handleResponseClient(void* arg) {
+    ClientInfo* info = static_cast<ClientInfo*>(arg);
+    int clientSocket = info->socket;
+
+    while (info->connected || !info->responses->empty()) {
+        std::unique_lock<std::mutex> lock(info->responsesMutex);
+        info->condition.wait(lock, [info] { return !info->responses->empty() || !info->connected; });
+
+        if (!info->responses->empty()) {
+            chat::Response response = info->responses->front();
+            info->responses->pop();
+            lock.unlock();
+
+            int status = sendResponse(&response, clientSocket);
+            if (status == -1) {
+                std::cerr << "Error al enviar la respuesta." << std::endl;
+                break;
+            }
+            std::cout << "Respuesta enviada." << std::endl;
+        } else {
+            lock.unlock();
+        }
+    }
+
+    close(clientSocket);
+    return nullptr;
+}
+
+
 void* handleListenClient(void* arg) {
     ClientInfo* info = static_cast<ClientInfo*>(arg);
     int clientSocket = info->socket;
@@ -252,6 +278,8 @@ void* handleListenClient(void* arg) {
         }
     }
 
+    info->userName = userName;
+
     // Create timer
     {
         std::lock_guard<std::mutex> lock(info->timerMutex);
@@ -266,6 +294,22 @@ void* handleListenClient(void* arg) {
             info->itsNotOffline.notify_all();
         }
     }
+
+    // Create timer thread
+    pthread_t timerThread;
+    if (pthread_create(&timerThread, nullptr, handleTimerClient, (void*)info) != 0) {
+        std::cerr << "Error al crear el hilo del temporizador." << std::endl;
+        return nullptr;
+    }
+    // Create response thread
+    pthread_t responseThread;
+    if (pthread_create(&responseThread, nullptr, handleResponseClient, (void*)info) != 0) {
+        std::cerr << "Error al crear el hilo de respuesta." << std::endl;
+        return nullptr;
+    }
+
+
+
     while (info->connected) {
         chat::Request request;
         int status = getRequest(&request, clientSocket);
@@ -284,6 +328,9 @@ void* handleListenClient(void* arg) {
         {
             std::lock_guard<std::mutex> lock(clientsMutex);
             clients[userName]["status"] = status ;
+            if (status != chat::UserStatus::OFFLINE) {
+                info->itsNotOffline.notify_all();
+            }
         }
 
         // If status is offline, remove user from online users, else add user to online users
@@ -298,7 +345,6 @@ void* handleListenClient(void* arg) {
                 auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
                 if (it == onlineUsers.end()) {
                     onlineUsers.push_back(userName);
-                    info->itsNotOffline.notify_all();
                 }
             }
         }
@@ -333,34 +379,6 @@ void* handleListenClient(void* arg) {
         auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
         if (it != onlineUsers.end()) {
             onlineUsers.erase(it);
-        }
-    }
-
-    close(clientSocket);
-    return nullptr;
-}
-
-void* handleResponseClient(void* arg) {
-    ClientInfo* info = static_cast<ClientInfo*>(arg);
-    int clientSocket = info->socket;
-
-    while (info->connected || !info->responses->empty()) {
-        std::unique_lock<std::mutex> lock(info->responsesMutex);
-        info->condition.wait(lock, [info] { return !info->responses->empty() || !info->connected; });
-
-        if (!info->responses->empty()) {
-            chat::Response response = info->responses->front();
-            info->responses->pop();
-            lock.unlock();
-
-            int status = sendResponse(&response, clientSocket);
-            if (status == -1) {
-                std::cerr << "Error al enviar la respuesta." << std::endl;
-                break;
-            }
-            std::cout << "Respuesta enviada." << std::endl;
-        } else {
-            lock.unlock();
         }
     }
 
@@ -421,23 +439,9 @@ int main() {
 
         std::cout << "Cliente conectado desde " << clientInfo->ipAddress << ":" << clientInfo->socket << "." << std::endl;
 
-        pthread_t clientThread, responseThread, timerThread;
+        pthread_t clientThread;
         if (pthread_create(&clientThread, nullptr, handleListenClient, (void*)clientInfo) != 0) {
             std::cerr << "Error al crear el hilo para el cliente." << std::endl;
-            close(clientSocket);
-            delete clientInfo;
-            continue;
-        }
-
-        if (pthread_create(&responseThread, nullptr, handleResponseClient, (void*)clientInfo) != 0) {
-            std::cerr << "Error al crear el hilo para las respuestas del cliente." << std::endl;
-            close(clientSocket);
-            delete clientInfo;
-            continue;
-        }
-
-        if (pthread_create(&timerThread, nullptr, handleTimerClient, (void*)clientInfo) != 0) {
-            std::cerr << "Error al crear el hilo para el temporizador del cliente." << std::endl;
             close(clientSocket);
             delete clientInfo;
             continue;
