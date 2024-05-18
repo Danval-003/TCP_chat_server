@@ -167,6 +167,9 @@ void* handleListenClient(void* arg) {
             break;
         }
 
+        std::cout << "Solicitud recibida de " << userName << "." << std::endl;
+        std::cout << "Operación: " << request.operation() << std::endl;
+
         switch (request.operation()) {
             case chat::SEND_MESSAGE:
                 sendMessage(&request, info, userName);
