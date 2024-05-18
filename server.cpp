@@ -401,7 +401,9 @@ void* handleListenClient(void* arg) {
 
     // Wait for the response thread to finish
     pthread_join(responseThread, nullptr);
-    // Wait for the timer thread to finish
+    // Force the timer thread to finish
+    info->connected = false;
+    info->itsNotOffline.notify_all();
     pthread_join(timerThread, nullptr);
 
 
