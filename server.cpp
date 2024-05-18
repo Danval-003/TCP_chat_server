@@ -381,6 +381,8 @@ void* handleListenClient(void* arg) {
             std::lock_guard<std::mutex> lock(info->responsesMutex);
             info->responses->push(response);
         }
+        info->condition.notify_all();
+        std::cout << "Error: " << e.what() << std::endl;
     }
 
 
