@@ -24,11 +24,12 @@ struct ClientInfo {
     time_t lastMessage;
     std::mutex timerMutex;
     std::string userName;
+    std::condition_variable itsNotOffline;
 };
 
 using json = nlohmann::json;
 // Define Timeout with 5 seconds with time
-#define TIMEOUT 5.0
+constexpr double TIMEOUT = 5.0;
 
 json clients;
 std::mutex clientsMutex;
@@ -44,10 +45,24 @@ void* handleTimerClient(void* arg){
     ClientInfo* info = static_cast<ClientInfo*>(arg);
     while (info->connected) {
         std::unique_lock<std::mutex> lock(info->timerMutex);
-        info->condition.wait_for(lock, std::chrono::seconds(5), [info] { return time(nullptr) - info->lastMessage >= TIMEOUT; });
-        double diff = difftime(time(nullptr), info->lastMessage);
-        if ( diff>= TIMEOUT) {
-            std::cout << "Cliente " << info->userName << " desconectado por inactividad."<<diff << std::endl;
+        info->itsNotOffline.wait_for(lock, std::chrono::seconds(TIMEOUT), [info] { return difftime(time(nullptr), info->lastMessage) >= TIMEOUT; });
+        double seconds = difftime(time(nullptr), info->lastMessage);
+        if (seconds >= TIMEOUT) {
+            // Change status to offline
+            {
+                std::lock_guard<std::mutex> lock(clientsMutex);
+                clients[info->userName]["status"] = chat::UserStatus::OFFLINE;
+            }
+            // Remove user from online users
+            {
+                std::lock_guard<std::mutex> lock(onlineUsersMutex);
+                auto it = std::find(onlineUsers.begin(), onlineUsers.end(), info->userName);
+                if (it != onlineUsers.end()) {
+                    onlineUsers.erase(it);
+                }
+            }
+            // Print
+            std::cout << info->userName << " se desconectó por inactividad." << std::endl;
         }
     }
     return nullptr;
@@ -141,15 +156,19 @@ void updateStatus(std::string userName, chat::Request request, ClientInfo* info,
         clients[userName]["status"] = request.update_status().new_status();
     }
     // If new status not online or busy, remove user from online users. And if new status is online or busy, add user to online users.
-    if (request.update_status().new_status() == chat::UserStatus::OFFLINE ){
-        auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
-        if (it != onlineUsers.end()) {
-            onlineUsers.erase(it);
-        }
-    } else {
-        auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
-        if (it == onlineUsers.end()) {
-            onlineUsers.push_back(userName);
+    {
+        std::lock_guard<std::mutex> lock(onlineUsersMutex);
+        if (request.update_status().new_status() == chat::UserStatus::OFFLINE) {
+            auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+            if (it != onlineUsers.end()) {
+                onlineUsers.erase(it);
+            }
+        } else {
+            auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+            if (it == onlineUsers.end()) {
+                onlineUsers.push_back(userName);
+                info->itsNotOffline.notify_all();
+            }
         }
     }
     
@@ -232,11 +251,13 @@ void* handleListenClient(void* arg) {
     }
 
     // If is not offline, add user to online users
-    if (status != chat::UserStatus::OFFLINE) {
+    {
         std::lock_guard<std::mutex> lock(onlineUsersMutex);
-        onlineUsers.push_back(userName);
+        if (status != chat::UserStatus::OFFLINE) {
+            onlineUsers.push_back(userName);
+            info->itsNotOffline.notify_all();
+        }
     }
-
     while (info->connected) {
         chat::Request request;
         int status = getRequest(&request, clientSocket);
@@ -257,12 +278,20 @@ void* handleListenClient(void* arg) {
             clients[userName]["status"] = status ;
         }
 
-        // If status is offline, remove user from online users
-        if (status == chat::UserStatus::OFFLINE) {
+        // If status is offline, remove user from online users, else add user to online users
+        {
             std::lock_guard<std::mutex> lock(onlineUsersMutex);
-            auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
-            if (it != onlineUsers.end()) {
-                onlineUsers.erase(it);
+            if (status == chat::UserStatus::OFFLINE) {
+                auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+                if (it != onlineUsers.end()) {
+                    onlineUsers.erase(it);
+                }
+            } else {
+                auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+                if (it == onlineUsers.end()) {
+                    onlineUsers.push_back(userName);
+                    info->itsNotOffline.notify_all();
+                }
             }
         }
 
