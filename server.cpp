@@ -390,7 +390,19 @@ void* handleListenClient(void* arg) {
         }
         info->condition.notify_all();
         std::cout << "Error: " << e.what() << std::endl;
+        info->connected = false;
     }
+
+    // Change status to offline
+    {
+        std::lock_guard<std::mutex> lock(clientsMutex);
+        clients[userName]["status"] = chat::UserStatus::OFFLINE;
+    }
+
+    // Wait for the response thread to finish
+    pthread_join(responseThread, nullptr);
+    // Wait for the timer thread to finish
+    pthread_join(timerThread, nullptr);
 
 
     // Disconnect user
