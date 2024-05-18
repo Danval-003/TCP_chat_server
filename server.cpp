@@ -135,7 +135,6 @@ void sendUsersList(ClientInfo* info) {
         for (const std::string& userName : onlineUsers) {
             chat::User* user = userList->add_users();
             user->set_username(userName);
-            user->set_status(clients[userName]["status"]);
         }
     }
 
