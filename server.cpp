@@ -189,6 +189,23 @@ void sendUsersList(ClientInfo* info) {
     info->condition.notify_all();
 }
 
+void userInfo(std::string userName, ClientInfo* info){
+    std::string ip = clients[userName]["ip"];
+    std::string username = userName+": " + ip;
+    chat::Response response;
+    response.set_operation(chat::GET_USERS);
+    response.set_status_code(chat::OK);
+    response.set_message("Lista de usuarios.");
+    chat::UserListResponse* userList = response.mutable_user_list();
+    userList->set_type(chat::SINGLE);
+    chat::User* user = userList->add_users();
+    user->set_username(username);
+    user->set_status(clients[userName]["status"]);
+    {
+        std::lock_guard<std::mutex> lock(info->responsesMutex);
+        info->responses->push(response);
+    }
+}
 
 void updateStatus(std::string userName, chat::Request request, ClientInfo* info, int* status){
     // Verify if exist status in request
@@ -406,7 +423,12 @@ void* handleListenClient(void* arg) {
                     sendMessage(&request, info, userName);
                     break;
                 case chat::GET_USERS:
-                    sendUsersList(info);
+                    // Verify if username in request is empty
+                    if (request.get_users().username().empty()) {
+                        sendUsersList(info);
+                    } else {
+                        userInfo(request.get_users().username(), info);
+                    }
                     break;
                 case chat::UPDATE_STATUS:
                     updateStatus(userName, request, info, &status);
