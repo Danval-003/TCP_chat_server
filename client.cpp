@@ -140,6 +140,37 @@ void getActiveUsers(int clientSocket) {
     }
 }
 
+void getSingleUser(int clientSocket) {
+    std::string username;
+
+    if (username.empty()) {    
+        // Prompt the user to enter the username they are searching for
+        std::cout << "Please enter the username you'd like to search for: " << std::endl;
+        // Read user input
+        std::getline(std::cin, username);
+    }
+
+    // Create a request object to send to the server
+    chat::Request request;
+
+    // Set the operation type to GET_USERS in the request object
+    request.set_operation(chat::GET_USERS); 
+
+    // Set the username in the get_users field of the request
+    auto *user_details = request.mutable_get_users();
+    user_details -> set_username(username);
+
+    // Send the request to the server using the specified client socket
+    if (sendRequest(&request, clientSocket) < 0) {
+        // If sending the request fails, print an error message and exit the program
+        std::cout << "\nFailed to send request." << std::endl; 
+        exit(1); 
+    }
+
+    // Clear the username string after sending the request
+    username.clear();
+}
+
 void handleBroadcasting(int clientSocket) {
     std::string msg;
 
@@ -255,7 +286,7 @@ void* listener(void* arg) {
             std::cout << "\nError: Unable to send the request." << std::endl;
             exit(1);
         }
-
+        
         switch (response.operation()){
         case 1:
             // TODO: Code to send direct message.
@@ -266,24 +297,26 @@ void* listener(void* arg) {
             break;
 
         case 3:
-            // Check if the response contains a user list
             if (!response.has_user_list()) {
-                // If no user list is found, print a message indicating no active users
-                std::cout << "\nNo active users found." << std::endl; 
+                // If no user list is found in the response, print an informative message
+                std::cout << "No Active Users Found." << std::endl; 
             } else {
-                // If a user list is found, retrieve it
                 const auto &user_list = response.user_list();
-                std::cout << "Active users:" << std::endl;
                 
-                // Iterate through the users in the user list and print each username
-                for (const auto& user : user_list.users()) {
-                    std::cout << user.username() << std::endl;
+                if (user_list.type() == chat::UserListType::ALL) {
+                    std::cout << "Currently Active Users:" << std::endl;
+                    // Iterate through the users in the user list and print each username
+                    for (const auto& user : user_list.users()) {
+                        std::cout << "Username: " << user.username() << std::endl;
+                    }
+                } else if (user_list.type() == chat::UserListType::SINGLE) {
+                    std::cout << "User Information:" << std::endl;
+                    // Iterate through the users in the list and print their usernames
+                    for (const auto& user : user_list.users()) {
+                        std::cout << "Username: " << user.username() << std::endl;
+                    }
                 }
             }
-            break;
-
-        case 4:
-            // TODO: Code to get user information.
             break;
 
         case 5:
@@ -398,7 +431,8 @@ int main(int argc, char* argv[]) {
                 break;
 
             case 5:
-                // TODO: Code to get user information.
+                awaitingResponse = true;
+                getSingleUser(clientSocket);
                 break;
 
             case 6:
