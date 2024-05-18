@@ -250,7 +250,11 @@ void* handleListenClient(void* arg) {
         info->lastMessage = time(nullptr);
     }
 
-    onlineUsers.push_back(userName);
+    // If is not offline, add user to online users
+    if (status != chat::UserStatus::OFFLINE) {
+        std::lock_guard<std::mutex> lock(onlineUsersMutex);
+        onlineUsers.push_back(userName);
+    }
 
     while (info->connected) {
         chat::Request request;
@@ -274,14 +278,10 @@ void* handleListenClient(void* arg) {
 
         // If status is offline, remove user from online users
         if (status == chat::UserStatus::OFFLINE) {
+            std::lock_guard<std::mutex> lock(onlineUsersMutex);
             auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
             if (it != onlineUsers.end()) {
                 onlineUsers.erase(it);
-            }
-        } else {
-            auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
-            if (it == onlineUsers.end()) {
-                onlineUsers.push_back(userName);
             }
         }
 
@@ -366,11 +366,16 @@ int main() {
 
     std::cout << "Servidor TCP iniciado. Esperando conexiones..." << std::endl;
 
-    pthread_t messageThread;
+    pthread_t messageThread, timerThread;
     if (pthread_create(&messageThread, nullptr, handleThreadMessages, nullptr) != 0) {
         std::cerr << "Error al crear el hilo para manejar mensajes." << std::endl;
         close(serverSocket);
         return 1;
+    }
+    
+    if (pthread_create(&timerThread, nullptr, handleTimers, nullptr) != 0) {
+    std::cerr << "Error al crear el hilo para los timers." << std::endl;
+
     }
 
     while (true) {
@@ -393,7 +398,7 @@ int main() {
 
         std::cout << "Cliente conectado desde " << clientInfo->ipAddress << ":" << clientInfo->socket << "." << std::endl;
 
-        pthread_t clientThread, responseThread, timerThread;
+        pthread_t clientThread, responseThread;
         if (pthread_create(&clientThread, nullptr, handleListenClient, (void*)clientInfo) != 0) {
             std::cerr << "Error al crear el hilo para el cliente." << std::endl;
             close(clientSocket);
@@ -403,13 +408,6 @@ int main() {
 
         if (pthread_create(&responseThread, nullptr, handleResponseClient, (void*)clientInfo) != 0) {
             std::cerr << "Error al crear el hilo para las respuestas del cliente." << std::endl;
-            close(clientSocket);
-            delete clientInfo;
-            continue;
-        }
-
-        if (pthread_create(&timerThread, nullptr, handleTimers, nullptr) != 0) {
-            std::cerr << "Error al crear el hilo para los timers." << std::endl;
             close(clientSocket);
             delete clientInfo;
             continue;
