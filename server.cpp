@@ -29,7 +29,7 @@ struct ClientInfo {
 
 using json = nlohmann::json;
 // Define Timeout with 5 seconds with time
-constexpr double TIMEOUT = 5.0;
+constexpr double TIMEOUT = 60.0;
 
 json clients;
 std::mutex clientsMutex;
