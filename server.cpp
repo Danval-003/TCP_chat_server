@@ -274,7 +274,7 @@ void updateStatus(std::string userName, chat::Request request, ClientInfo* info,
     {
         std::lock_guard<std::mutex> lock(onlineUsersMutex);
         if (request.update_status().new_status() == chat::UserStatus::OFFLINE) {
-            auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+            auto it = std::find(onlineUsers.begin(), onlineUsers.end(), info->userName);
             if (it != onlineUsers.end()) {
                 onlineUsers.erase(it);
             }
@@ -366,6 +366,15 @@ void* handleListenClient(void* arg) {
     client["socket"] = clientSocket;
     client["status"] = chat::UserStatus::ONLINE;
     int status = chat::UserStatus::ONLINE;
+    
+
+        // Create response thread
+    pthread_t responseThread;
+    if (pthread_create(&responseThread, nullptr, handleResponseClient, (void*)info) != 0) {
+        std::cerr << "Error al crear el hilo de respuesta." << std::endl;
+        return nullptr;
+    }
+    
 
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
@@ -378,6 +387,7 @@ void* handleListenClient(void* arg) {
                 std::lock_guard<std::mutex> responsesLock(info->responsesMutex);
                 info->responses->push(badResponse);
                 info->condition.notify_all();
+                info->connected = false;
                 return nullptr;
             } else {
                 chat::Response goodResponse;
@@ -424,20 +434,13 @@ void* handleListenClient(void* arg) {
         }
     }
 
-    // Create timer thread
+    bool unregister = false;
+
     pthread_t timerThread;
     if (pthread_create(&timerThread, nullptr, handleTimerClient, (void*)info) != 0) {
         std::cerr << "Error al crear el hilo del temporizador." << std::endl;
         return nullptr;
     }
-    // Create response thread
-    pthread_t responseThread;
-    if (pthread_create(&responseThread, nullptr, handleResponseClient, (void*)info) != 0) {
-        std::cerr << "Error al crear el hilo de respuesta." << std::endl;
-        return nullptr;
-    }
-
-    bool unregister = false;
 
 
     try {
@@ -525,8 +528,16 @@ void* handleListenClient(void* arg) {
 
     if (unregister){
 
-        // Force thread to cancel
-        pthread_cancel(responseThread);
+        // Response to client
+        chat::Response response;
+        response.set_operation(chat::UNREGISTER_USER);
+        response.set_status_code(chat::OK);
+        response.set_message("Successfully unregistered.");
+        {
+            std::lock_guard<std::mutex> lock(info->responsesMutex);
+            info->responses->push(response);
+        }
+        info->condition.notify_all();
         pthread_cancel(timerThread);
         // unit threads
         pthread_join(responseThread, nullptr);
