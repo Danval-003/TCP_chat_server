@@ -293,7 +293,8 @@ void* handleResponseClient(void* arg) {
     ClientInfo* info = static_cast<ClientInfo*>(arg);
     int clientSocket = info->socket;
 
-    while (info->connected || !info->responses->empty()) {
+    try {
+        while (info->connected || !info->responses->empty()) {
         std::unique_lock<std::mutex> lock(info->responsesMutex);
         info->condition.wait(lock, [info] { return !info->responses->empty() || !info->connected; });
 
@@ -310,6 +311,16 @@ void* handleResponseClient(void* arg) {
             std::cout << "Respuesta enviada." << response.message() << std::endl;
         } else {
             lock.unlock();
+        }
+    }
+    } 
+    catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        std::cout << "Error: " << e.what() << std::endl;
+        // Try to create a new thread
+        pthread_t responseThread;
+        if (pthread_create(&responseThread, nullptr, handleResponseClient, (void*)info) != 0) {
+            std::cerr << "Error al crear el hilo de respuesta." << std::endl;
         }
     }
 
