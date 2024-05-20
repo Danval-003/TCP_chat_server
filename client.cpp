@@ -175,8 +175,17 @@ void getSingleUser(int clientSocket) {
     username.clear();
 }
 
-void handleBroadcasting(int clientSocket) {
+void handleBroadcasting(int clientSocket, int privateMessage = 0) {
     std::string msg;
+    std::string recipient;
+
+    if (privateMessage) {
+        // Prompt the user to enter the message they want to broadcast
+        std::cout << "Enter the recipient's username: " << std::endl;
+
+        // Read the entire line of input from the user
+        std::getline(std::cin, recipient);
+    }
 
     // Prompt the user to enter the message they want to broadcast
     std::cout << "Enter the message you'd like to broadcast: " << std::endl;
@@ -195,6 +204,10 @@ void handleBroadcasting(int clientSocket) {
 
     // Set the content of the message in the request
     requestmsg->set_content(msg);
+
+    if (privateMessage) {
+        requestmsg->set_recipient(recipient);
+    }
 
     // Send the request to the server using the specified client socket
     if (sendRequest(&request, clientSocket) < 0) {
@@ -285,9 +298,9 @@ void* messageDequeue(void*) {
         if (!messagesQueue.empty()) {
             const auto& msg = messagesQueue.front();
             if (msg.type() == chat::MessageType::BROADCAST) {
-                std::cout << BOLD << CYAN << msg.sender() << ": " << RESET << msg.content() << std::endl;
+                std::cout << BOLD << CYAN << msg.sender() << RESET << msg.content() << std::endl;
             } else {
-                std::cout << BOLD << CYAN << msg.sender() << RESET << RED <<" (Private Message)" << BOLD << CYAN << ": " << RESET << msg.content() << std::endl;
+                std::cout << BOLD << CYAN << msg.sender() << RESET << RED <<" (Private Message) " << RESET << msg.content() << std::endl;
             }
             messagesQueue.pop();
         }
@@ -484,7 +497,7 @@ int main(int argc, char* argv[]) {
                 break;
 
             case 3:
-                // TODO: Code to send direct message.
+                handleBroadcasting(clientSocket, 1);
                 break;
 
             case 4:
