@@ -366,6 +366,12 @@ void* handleListenClient(void* arg) {
     client["socket"] = clientSocket;
     client["status"] = chat::UserStatus::ONLINE;
     int status = chat::UserStatus::ONLINE;
+        // Create timer thread
+    pthread_t timerThread;
+    if (pthread_create(&timerThread, nullptr, handleTimerClient, (void*)info) != 0) {
+        std::cerr << "Error al crear el hilo del temporizador." << std::endl;
+        return nullptr;
+    }
 
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
@@ -378,6 +384,7 @@ void* handleListenClient(void* arg) {
                 std::lock_guard<std::mutex> responsesLock(info->responsesMutex);
                 info->responses->push(badResponse);
                 info->condition.notify_all();
+                info->connected = false;
                 return nullptr;
             } else {
                 chat::Response goodResponse;
@@ -424,20 +431,14 @@ void* handleListenClient(void* arg) {
         }
     }
 
-    // Create timer thread
-    pthread_t timerThread;
-    if (pthread_create(&timerThread, nullptr, handleTimerClient, (void*)info) != 0) {
-        std::cerr << "Error al crear el hilo del temporizador." << std::endl;
-        return nullptr;
-    }
+    bool unregister = false;
+
     // Create response thread
     pthread_t responseThread;
     if (pthread_create(&responseThread, nullptr, handleResponseClient, (void*)info) != 0) {
         std::cerr << "Error al crear el hilo de respuesta." << std::endl;
         return nullptr;
     }
-
-    bool unregister = false;
 
 
     try {
