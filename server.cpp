@@ -92,6 +92,7 @@ void* handleThreadMessages(void* arg) {
     }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
+        std::cout << "Error: " << e.what() << std::endl;
         // Try to create a new thread
         pthread_t messageThread;
         if (pthread_create(&messageThread, nullptr, handleThreadMessages, nullptr) != 0) {
@@ -456,6 +457,7 @@ void* handleListenClient(void* arg) {
                     break;
 
                 case chat::UNREGISTER_USER:
+                    // Delete client from clients
                     break;
                 default:
                     break;
