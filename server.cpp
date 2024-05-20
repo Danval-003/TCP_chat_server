@@ -43,6 +43,8 @@ json onlineUsers;
 
 void* handleTimerClient(void* arg){
     ClientInfo* info = static_cast<ClientInfo*>(arg);
+    int oldtype;
+    pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, &oldtype);
     try{
         while (info->connected) {
         // Wait if user is offline
@@ -303,6 +305,8 @@ void updateStatus(std::string userName, chat::Request request, ClientInfo* info,
 void* handleResponseClient(void* arg) {
     ClientInfo* info = static_cast<ClientInfo*>(arg);
     int clientSocket = info->socket;
+    int oldtype;
+    pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, &oldtype);
 
     try {
         while (info->connected || !info->responses->empty()) {
@@ -519,17 +523,25 @@ void* handleListenClient(void* arg) {
     }
 
     if (unregister){
+
+        // Force thread to cancel
+        pthread_cancel(responseThread);
+        pthread_cancel(timerThread);
+        // unit threads
         pthread_join(responseThread, nullptr);
-        // Force the timer thread to finish
-        info->connected = false;
-        info->itsNotOffline.notify_all();
         pthread_join(timerThread, nullptr);
 
-        // Delete user from clients
+
+
+        // Delete user from clients info
         {
-            std::lock_guard<std::mutex> lock(clientsMutex);
-            clients.erase(userName);
+            std::lock_guard<std::mutex> lock(clientsInfoMutex);
+            auto it = std::find(clientsInfo.begin(), clientsInfo.end(), info);
+            if (it != clientsInfo.end()) {
+                clientsInfo.erase(it);
+            }
         }
+
         // Delete user from online users
         {
             std::lock_guard<std::mutex> lock(onlineUsersMutex);
@@ -539,13 +551,15 @@ void* handleListenClient(void* arg) {
             }
         }
 
-        // Delete socket from clients info
+        // Delete user from clients
         {
-            std::lock_guard<std::mutex> lock(clientsInfoMutex);
-            auto it = std::find(clientsInfo.begin(), clientsInfo.end(), info);
-            if (it != clientsInfo.end()) {
-                clientsInfo.erase(it);
+            std::lock_guard<std::mutex> lock(clientsMutex);
+            // Find client username
+            auto it = clients.find(userName);
+            if (it != clients.end()) {
+                clients.erase(it);
             }
+
         }
 
         close(clientSocket);
