@@ -111,6 +111,10 @@ void sendMessage(chat::Request* request, ClientInfo* info, const std::string& se
         response.set_operation(chat::INCOMING_MESSAGE);
         response.set_status_code(chat::OK);
         response.set_message("Message sent.");
+        chat::IncomingMessageResponse* msg = response.mutable_incoming_message();
+        msg->set_content(request->send_message().content());
+        msg->set_sender(sender);
+        msg->set_type(chat::BROADCAST);
         {
             std::lock_guard<std::mutex> lock(messagesMutex);
             messages.push(response);
@@ -142,6 +146,7 @@ void sendMessage(chat::Request* request, ClientInfo* info, const std::string& se
         chat::IncomingMessageResponse* msg = response.mutable_incoming_message();
         msg->set_content(request->send_message().content());
         msg->set_sender(sender);
+        msg->set_type(chat::DIRECT);
         {
             std::lock_guard<std::mutex> lock(clientsInfoMutex);
             for (ClientInfo* clientInfo : clientsInfo) {
