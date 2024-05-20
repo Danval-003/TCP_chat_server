@@ -396,6 +396,8 @@ void* listener(void* arg) {
 
         case 4:
             std::cout << response.message() << std::endl;
+            awaitingResponse = false;
+            pthread_exit(NULL);
             break;
 
         case 5:
