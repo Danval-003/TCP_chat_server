@@ -526,8 +526,16 @@ void* handleListenClient(void* arg) {
 
     if (unregister){
 
-        // Force thread to cancel
-        pthread_cancel(responseThread);
+        // Response to client
+        chat::Response response;
+        response.set_operation(chat::UNREGISTER_USER);
+        response.set_status_code(chat::OK);
+        response.set_message("Successfully unregistered.");
+        {
+            std::lock_guard<std::mutex> lock(info->responsesMutex);
+            info->responses->push(response);
+        }
+        info->condition.notify_all();
         pthread_cancel(timerThread);
         // unit threads
         pthread_join(responseThread, nullptr);
