@@ -364,7 +364,7 @@ void* listener(void* arg) {
         
         switch (response.operation()){
         case 1:
-            // TODO: Code to send direct message.
+            std::cout << response.message() << std::endl;
             break;
 
         case 2:
@@ -394,6 +394,10 @@ void* listener(void* arg) {
             }
             break;
 
+        case 4:
+            std::cout << response.message() << std::endl;
+            break;
+
         case 5:
             messagesQueue.push(response.incoming_message());
             break;
@@ -406,6 +410,21 @@ void* listener(void* arg) {
     // Return nullptr to indicate the thread's completion
     return nullptr;
 };
+
+void unregister(int clientSocket) {
+    // Create a request object
+    chat::Request request;
+
+    // Set the operation type to update status in the request
+    request.set_operation(chat::Operation::UNREGISTER_USER);
+
+    // Get a pointer to the mutable unregister_user field in the request
+    auto *request_user = request.mutable_unregister_user();
+
+    request_user -> set_username(TEST_USERNAME);
+
+    sendRequest(&request, clientSocket); 
+}
 
 // Main functions as a the thread to handle server requests.
 int main(int argc, char* argv[]) {
@@ -464,8 +483,6 @@ int main(int argc, char* argv[]) {
     pthread_create(&pthread_response, NULL, listener, (void*)&clientSocket);
     ThreadParams tp = {clientSocket, &pthread_response};
 
-    printMenu();
-
     while (isRunnig) {
 
         // Wait until awaitingResponse is false
@@ -475,6 +492,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (choiceStr.empty()) {
+            printMenu();
             std::cout << "\nWhat would you like to do? " << std::endl;
             std::getline(std::cin, choiceStr);
             continue;
@@ -522,6 +540,9 @@ int main(int argc, char* argv[]) {
             case 8:
                 isRunnig = false;
                 std::cout << "Exiting now..." << std::endl;
+                unregister(clientSocket);
+                awaitingResponse = true;
+                while (awaitingResponse);
                 close(clientSocket);
                 exit(0);
             default:
