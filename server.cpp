@@ -274,7 +274,7 @@ void updateStatus(std::string userName, chat::Request request, ClientInfo* info,
     {
         std::lock_guard<std::mutex> lock(onlineUsersMutex);
         if (request.update_status().new_status() == chat::UserStatus::OFFLINE) {
-            auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+            auto it = std::find(onlineUsers.begin(), onlineUsers.end(), info->userName);
             if (it != onlineUsers.end()) {
                 onlineUsers.erase(it);
             }
