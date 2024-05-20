@@ -29,7 +29,7 @@ struct ClientInfo {
 
 using json = nlohmann::json;
 // Define Timeout with 5 seconds with time
-constexpr double TIMEOUT = 5.0;
+constexpr double TIMEOUT = 60.0;
 
 json clients;
 std::mutex clientsMutex;
@@ -161,6 +161,17 @@ void sendMessage(chat::Request* request, ClientInfo* info, const std::string& se
         }
 
     }
+
+    // Send response
+    chat::Response response;
+    response.set_operation(chat::SEND_MESSAGE);
+    response.set_status_code(chat::OK);
+    response.set_message("Message sent.");
+    {
+        std::lock_guard<std::mutex> lock(info->responsesMutex);
+        info->responses->push(response);
+    }
+    info->condition.notify_all();
 }
 
 void sendUsersList(ClientInfo* info) {
