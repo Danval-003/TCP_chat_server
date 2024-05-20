@@ -2,6 +2,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <fstream>
 #include <unistd.h>
 #include <pthread.h>
 #include <cstring>
@@ -621,11 +622,35 @@ void* handleListenClient(void* arg) {
 }
 
 int main() {
+    // Obtain last serverSocket if exist from file
+    json lastServer;
+    std::ifstream lastFile("server.json");
+    if (lastFile.is_open()) {
+        lastFile >> lastServer;
+        lastFile.close();
+    }
+
+    if (!lastServer.empty()) {
+        close(lastServer["socket"]);
+    }
+
+
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    
+
     if (serverSocket == -1) {
         std::cerr << "Error al crear el socket del servidor." << std::endl;
         return 1;
     }
+
+    // Save server socket into a json
+    json server;
+    server["socket"] = serverSocket;
+
+    // Save into a file
+    std::ofstream file("server.json");
+    file << server.dump(4);
+    file.close();
 
     sockaddr_in serverAddress{};
     serverAddress.sin_family = AF_INET;
