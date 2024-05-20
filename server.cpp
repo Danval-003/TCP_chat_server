@@ -43,7 +43,8 @@ json onlineUsers;
 
 void* handleTimerClient(void* arg){
     ClientInfo* info = static_cast<ClientInfo*>(arg);
-    while (info->connected) {
+    try{
+        while (info->connected) {
         // Wait if user is offline
         {
             std::unique_lock<std::mutex> lock(info->timerMutex);
@@ -66,6 +67,16 @@ void* handleTimerClient(void* arg){
             }
             // Print
             std::cout << info->userName << " se desconectó por inactividad. " << seconds<< std::endl;
+        }
+    }
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        std::cout << "Error: " << e.what() << std::endl;
+        // Try to create a new thread
+        pthread_t timerThread;
+        if (pthread_create(&timerThread, nullptr, handleTimerClient, (void*)info) != 0) {
+            std::cerr << "Error al crear el hilo del temporizador." << std::endl;
         }
     }
     return nullptr;
@@ -500,7 +511,9 @@ void* handleListenClient(void* arg) {
         info->connected = false;
     }
 
-    // Change status to offline
+    try {
+
+        // Change status to offline
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
         clients[userName]["status"] = chat::UserStatus::OFFLINE;
@@ -539,6 +552,16 @@ void* handleListenClient(void* arg) {
     }
 
     close(clientSocket);
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        std::cout << "Error: " << e.what() << std::endl;
+        // Try to create a new thread
+        pthread_t clientThread;
+        if (pthread_create(&clientThread, nullptr, handleListenClient, (void*)info) != 0) {
+            std::cerr << "Error al crear el hilo para el cliente." << std::endl;
+        }
+    }
     return nullptr;
 }
 
