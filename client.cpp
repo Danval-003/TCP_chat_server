@@ -298,9 +298,9 @@ void* messageDequeue(void*) {
         if (!messagesQueue.empty()) {
             const auto& msg = messagesQueue.front();
             if (msg.type() == chat::MessageType::BROADCAST) {
-                std::cout << BOLD << CYAN << msg.sender() << RESET << msg.content() << std::endl;
+                std::cout << BOLD << CYAN << msg.sender() << ": " << RESET << msg.content() << std::endl;
             } else {
-                std::cout << BOLD << CYAN << msg.sender() << RESET << RED <<" (Private Message) " << RESET << msg.content() << std::endl;
+                std::cout << RED <<"(Private Message) " << BOLD << CYAN << msg.sender() << ": " << RESET << msg.content() << std::endl;
             }
             messagesQueue.pop();
         }
