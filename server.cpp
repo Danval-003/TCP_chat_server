@@ -306,6 +306,58 @@ void* handleResponseClient(void* arg) {
 }
 
 
+void unRegisterUser(std::string userName, ClientInfo* info){
+    // Verify if userName exists into clients
+    if (clients.find(userName) == clients.end()) {
+        chat::Response response;
+        response.set_operation(chat::UNREGISTER_USER);
+        response.set_status_code(chat::BAD_REQUEST);
+        response.set_message("User not found.");
+        {
+            std::lock_guard<std::mutex> lock(info->responsesMutex);
+            info->responses->push(response);
+        }
+        info->condition.notify_all();
+        return;
+    }
+
+    // Delete user from clients
+    {
+        std::lock_guard<std::mutex> lock(clientsMutex);
+        clients.erase(userName);
+    }
+
+    // Delete user from online users
+    {
+        std::lock_guard<std::mutex> lock(onlineUsersMutex);
+        auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+        if (it != onlineUsers.end()) {
+            onlineUsers.erase(it);
+        }
+    }
+
+    // Delete user from clients info
+    {
+        std::lock_guard<std::mutex> lock(clientsInfoMutex);
+        auto it = std::find(clientsInfo.begin(), clientsInfo.end(), info);
+        if (it != clientsInfo.end()) {
+            clientsInfo.erase(it);
+        }
+    }
+
+    // Send response
+    chat::Response response;
+    response.set_operation(chat::UNREGISTER_USER);
+    response.set_status_code(chat::OK);
+    response.set_message("User unregistered.");
+    {
+        std::lock_guard<std::mutex> lock(info->responsesMutex);
+        info->responses->push(response);
+    }
+    info->condition.notify_all();
+}
+
+
 void* handleListenClient(void* arg) {
     ClientInfo* info = static_cast<ClientInfo*>(arg);
     int clientSocket = info->socket;
@@ -454,6 +506,10 @@ void* handleListenClient(void* arg) {
                 case chat::UPDATE_STATUS:
                     updateStatus(userName, request, info, &status);
                     break;
+
+                case chat::UNREGISTER_USER:
+                    unRegisterUser(userName, info);
+                    break;
                 default:
                     break;
             }
@@ -473,41 +529,52 @@ void* handleListenClient(void* arg) {
         info->connected = false;
     }
 
-    // Change status to offline
+    // If client is in client list
+    bool clientOk= false;
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
-        clients[userName]["status"] = chat::UserStatus::OFFLINE;
-    }
-
-    // Wait for the response thread to finish
-    pthread_join(responseThread, nullptr);
-    // Force the timer thread to finish
-    info->connected = false;
-    info->itsNotOffline.notify_all();
-    pthread_join(timerThread, nullptr);
-
-
-    // Disconnect user
-    {
-        std::lock_guard<std::mutex> lock(clientsMutex);
-        clients.erase(userName);
-    }
-
-    // Delete user from online users
-    {
-        std::lock_guard<std::mutex> lock(onlineUsersMutex);
-        auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
-        if (it != onlineUsers.end()) {
-            onlineUsers.erase(it);
+        if (clients.find(userName) != clients.end()) {
+            clientOk = true;
         }
     }
 
-    // Delete user from clients info
-    {
-        std::lock_guard<std::mutex> lock(clientsInfoMutex);
-        auto it = std::find(clientsInfo.begin(), clientsInfo.end(), info);
-        if (it != clientsInfo.end()) {
-            clientsInfo.erase(it);
+    if(clientOk) {
+        // Change status to offline
+        {
+            std::lock_guard<std::mutex> lock(clientsMutex);
+            clients[userName]["status"] = chat::UserStatus::OFFLINE;
+        }
+
+        // Wait for the response thread to finish
+        pthread_join(responseThread, nullptr);
+        // Force the timer thread to finish
+        info->connected = false;
+        info->itsNotOffline.notify_all();
+        pthread_join(timerThread, nullptr);
+
+
+        // Disconnect user
+        {
+            std::lock_guard<std::mutex> lock(clientsMutex);
+            clients.erase(userName);
+        }
+
+        // Delete user from online users
+        {
+            std::lock_guard<std::mutex> lock(onlineUsersMutex);
+            auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+            if (it != onlineUsers.end()) {
+                onlineUsers.erase(it);
+            }
+        }
+
+        // Delete user from clients info
+        {
+            std::lock_guard<std::mutex> lock(clientsInfoMutex);
+            auto it = std::find(clientsInfo.begin(), clientsInfo.end(), info);
+            if (it != clientsInfo.end()) {
+                clientsInfo.erase(it);
+            }
         }
     }
 
