@@ -108,7 +108,7 @@ void sendMessage(chat::Request* request, ClientInfo* info, const std::string& se
     std::cout << "Mensaje de " << sender << " para " << reciper << ": " << request->send_message().content() << std::endl;
     if (reciper.empty()) {
         chat::Response response;
-        response.set_operation(chat::SEND_MESSAGE);
+        response.set_operation(chat::INCOMING_MESSAGE);
         response.set_status_code(chat::OK);
         response.set_message("Message sent.");
         {
@@ -122,7 +122,7 @@ void sendMessage(chat::Request* request, ClientInfo* info, const std::string& se
             std::lock_guard<std::mutex> lock(clientsMutex);
             if (clients.find(reciper) == clients.end()) {
                 chat::Response response;
-                response.set_operation(chat::SEND_MESSAGE);
+                response.set_operation(chat::INCOMING_MESSAGE);
                 response.set_status_code(chat::BAD_REQUEST);
                 response.set_message("User not found.");
                 {
@@ -136,7 +136,7 @@ void sendMessage(chat::Request* request, ClientInfo* info, const std::string& se
 
         // Send message to reciper
         chat::Response response;
-        response.set_operation(chat::SEND_MESSAGE);
+        response.set_operation(chat::INCOMING_MESSAGE);
         response.set_status_code(chat::OK);
         response.set_message("Message sent.");
         chat::IncomingMessageResponse* msg = response.mutable_incoming_message();
@@ -580,3 +580,4 @@ int main() {
     close(serverSocket);
     return 0;
 }
+Hola mundo que tal estan, espero que este
