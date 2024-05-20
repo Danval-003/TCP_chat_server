@@ -153,6 +153,23 @@ void sendMessage(chat::Request* request, ClientInfo* info, const std::string& se
             }
         }
 
+        // Verify if reciper is not offline
+        {
+            std::lock_guard<std::mutex> lock(clientsMutex);
+            if (clients[reciper]["status"] == chat::UserStatus::OFFLINE) {
+                chat::Response response;
+                response.set_operation(chat::SEND_MESSAGE);
+                response.set_status_code(chat::BAD_REQUEST);
+                response.set_message("User is offline.");
+                {
+                    std::lock_guard<std::mutex> lock(info->responsesMutex);
+                    info->responses->push(response);
+                }
+                info->condition.notify_all();
+                return;
+            }
+        }
+
         // Send message to reciper
         chat::Response response;
         response.set_operation(chat::INCOMING_MESSAGE);
