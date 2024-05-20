@@ -290,7 +290,7 @@ void updateStatus(std::string userName, chat::Request request, ClientInfo* info,
     response.set_operation(chat::UPDATE_STATUS);
     response.set_status_code(chat::OK);
     response.set_message("Status updated.");
-    std::cout << "Respuesta enviada. Update" << std::endl;
+
     {
         std::lock_guard<std::mutex> lock(info->responsesMutex);
         info->responses->push(response);
@@ -319,7 +319,6 @@ void* handleResponseClient(void* arg) {
                 std::cerr << "Error al enviar la respuesta." << std::endl;
                 break;
             }
-            std::cout << "Respuesta enviada." << response.message() << std::endl;
         } else {
             lock.unlock();
         }
@@ -400,6 +399,11 @@ void* handleListenClient(void* arg) {
 
     info->userName = userName;
 
+    {
+        std::lock_guard<std::mutex> lock(clientsInfoMutex);
+        clientsInfo.push_back(info);
+    }
+
     // Create timer
     {
         std::lock_guard<std::mutex> lock(info->timerMutex);
@@ -427,6 +431,8 @@ void* handleListenClient(void* arg) {
         std::cerr << "Error al crear el hilo de respuesta." << std::endl;
         return nullptr;
     }
+
+    bool unregister = false;
 
 
     try {
@@ -490,7 +496,8 @@ void* handleListenClient(void* arg) {
                     break;
 
                 case chat::UNREGISTER_USER:
-                    // Delete client from clients
+                    unregister = true;
+                    info->connected = false;
                     break;
                 default:
                     break;
@@ -511,56 +518,90 @@ void* handleListenClient(void* arg) {
         info->connected = false;
     }
 
-    try {
+    if (unregister){
+        pthread_join(responseThread, nullptr);
+        // Force the timer thread to finish
+        info->connected = false;
+        info->itsNotOffline.notify_all();
+        pthread_join(timerThread, nullptr);
 
-        // Change status to offline
-    {
-        std::lock_guard<std::mutex> lock(clientsMutex);
-        clients[userName]["status"] = chat::UserStatus::OFFLINE;
-    }
-
-    // Wait for the response thread to finish
-    pthread_join(responseThread, nullptr);
-    // Force the timer thread to finish
-    info->connected = false;
-    info->itsNotOffline.notify_all();
-    pthread_join(timerThread, nullptr);
-
-
-    // Disconnect user
-    {
-        std::lock_guard<std::mutex> lock(clientsMutex);
-        clients.erase(userName);
-    }
-
-    // Delete user from online users
-    {
-        std::lock_guard<std::mutex> lock(onlineUsersMutex);
-        auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
-        if (it != onlineUsers.end()) {
-            onlineUsers.erase(it);
+        // Delete user from clients
+        {
+            std::lock_guard<std::mutex> lock(clientsMutex);
+            clients.erase(userName);
         }
-    }
-
-    // Delete user from clients info
-    {
-        std::lock_guard<std::mutex> lock(clientsInfoMutex);
-        auto it = std::find(clientsInfo.begin(), clientsInfo.end(), info);
-        if (it != clientsInfo.end()) {
-            clientsInfo.erase(it);
+        // Delete user from online users
+        {
+            std::lock_guard<std::mutex> lock(onlineUsersMutex);
+            auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+            if (it != onlineUsers.end()) {
+                onlineUsers.erase(it);
+            }
         }
-    }
 
-    close(clientSocket);
-    }
-    catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        std::cout << "Error: " << e.what() << std::endl;
-        // Try to create a new thread
-        pthread_t clientThread;
-        if (pthread_create(&clientThread, nullptr, handleListenClient, (void*)info) != 0) {
-            std::cerr << "Error al crear el hilo para el cliente." << std::endl;
+        // Delete socket from clients info
+        {
+            std::lock_guard<std::mutex> lock(clientsInfoMutex);
+            auto it = std::find(clientsInfo.begin(), clientsInfo.end(), info);
+            if (it != clientsInfo.end()) {
+                clientsInfo.erase(it);
+            }
         }
+
+        close(clientSocket);
+    }
+    else{
+         try {
+
+                // Change status to offline
+            {
+                std::lock_guard<std::mutex> lock(clientsMutex);
+                clients[userName]["status"] = chat::UserStatus::OFFLINE;
+            }
+
+            // Wait for the response thread to finish
+            pthread_join(responseThread, nullptr);
+            // Force the timer thread to finish
+            info->connected = false;
+            info->itsNotOffline.notify_all();
+            pthread_join(timerThread, nullptr);
+
+
+            // Disconnect user
+            {
+                std::lock_guard<std::mutex> lock(clientsMutex);
+                clients.erase(userName);
+            }
+
+            // Delete user from online users
+            {
+                std::lock_guard<std::mutex> lock(onlineUsersMutex);
+                auto it = std::find(onlineUsers.begin(), onlineUsers.end(), userName);
+                if (it != onlineUsers.end()) {
+                    onlineUsers.erase(it);
+                }
+            }
+
+            // Delete user from clients info
+            {
+                std::lock_guard<std::mutex> lock(clientsInfoMutex);
+                auto it = std::find(clientsInfo.begin(), clientsInfo.end(), info);
+                if (it != clientsInfo.end()) {
+                    clientsInfo.erase(it);
+                }
+            }
+
+            close(clientSocket);
+            }
+            catch (const std::exception& e) {
+                std::cerr << "Error: " << e.what() << std::endl;
+                std::cout << "Error: " << e.what() << std::endl;
+                // Try to create a new thread
+                pthread_t clientThread;
+                if (pthread_create(&clientThread, nullptr, handleListenClient, (void*)info) != 0) {
+                    std::cerr << "Error al crear el hilo para el cliente." << std::endl;
+                }
+            }
     }
     return nullptr;
 }
@@ -624,11 +665,6 @@ int main() {
             close(clientSocket);
             delete clientInfo;
             continue;
-        }
-
-        {
-            std::lock_guard<std::mutex> lock(clientsInfoMutex);
-            clientsInfo.push_back(clientInfo);
         }
     }
 
