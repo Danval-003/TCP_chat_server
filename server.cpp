@@ -122,7 +122,7 @@ void sendMessage(chat::Request* request, ClientInfo* info, const std::string& se
             std::lock_guard<std::mutex> lock(clientsMutex);
             if (clients.find(reciper) == clients.end()) {
                 chat::Response response;
-                response.set_operation(chat::INCOMING_MESSAGE);
+                response.set_operation(chat::SEND_MESSAGE);
                 response.set_status_code(chat::BAD_REQUEST);
                 response.set_message("User not found.");
                 {
