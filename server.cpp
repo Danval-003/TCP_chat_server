@@ -220,12 +220,16 @@ void sendUsersList(ClientInfo* info) {
         }
     }
 
-    // Get all online users
+    // Get all users arent offline, from clients
     {
-        std::lock_guard<std::mutex> lock(onlineUsersMutex);
-        for (const std::string& userName : onlineUsers) {
-            chat::User* user = userList->add_users();
-            user->set_username(userName);
+        std::lock_guard<std::mutex> lock(clientsMutex);
+        for (auto it = clients.begin(); it != clients.end(); ++it) {
+            if (it.value()["status"] != chat::UserStatus::OFFLINE) {
+                std::string username = it.key();
+                chat::User* user = userList->add_users();
+                user->set_username(username);
+                user->set_status(it.value()["status"]);
+            }
         }
     }
 
