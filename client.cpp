@@ -13,6 +13,7 @@
 #include "./src/sendFunction.h"
 #include <thread>
 #include <vector>
+#include <stdlib.h>
 using namespace std;
 
 // Set the maximum buffer (message) size to 5000 bytes.
@@ -26,11 +27,13 @@ std::atomic<bool>awaitingResponse{false};
 // Queue to store the incoming messages from the server (FIFO),
 // to be used only on broadcasting and private msg. on the
 // general chat.
-std::queue<std::string> messages;
+std::queue<chat::IncomingMessageResponse> messagesQueue;
 
 // Stack that contains possible user status.
 // ONLY USED WHEN PRINTING.
 std::vector<std::string> user_status = {"Online", "Busy", "Offline"};
+
+volatile int threadExit = 1;
 
 struct ThreadParams {
     int clientSocket;
@@ -39,13 +42,14 @@ struct ThreadParams {
 
 void printMenu() {
     std::vector<std::string> menuItems = {
-        "1. Broadcasting",
-        "2. Send Direct Message",
-        "3. Change Status",
-        "4. List Active Users",
-        "5. Get User Information",
-        "6. Help",
-        "7. Exit"
+        "1. Show Messages",
+        "2. Broadcasting",
+        "3. Send Direct Message",
+        "4. Change Status",
+        "5. List Active Users",
+        "6. Get User Information",
+        "7. Help",
+        "8. Exit"
     };
 
     const std::string title = "OS Chat Main Menu";
@@ -274,6 +278,64 @@ void handleStatusChange(int clientSocket) {
     choice = 0;
 };
 
+void* messageDequeue(void*) {
+
+    while(threadExit) {
+        
+        if (!messagesQueue.empty()) {
+            const auto& msg = messagesQueue.front();
+            if (msg.type() == chat::MessageType::BROADCAST) {
+                std::cout << BOLD << CYAN << msg.sender() << ": " << RESET << msg.content() << std::endl;
+            } else {
+                std::cout << BOLD << CYAN << msg.sender() << RESET << RED <<" (Private Message)" << BOLD << CYAN << ": " << RESET << msg.content() << std::endl;
+            }
+            messagesQueue.pop();
+        }
+
+    }
+
+    pthread_exit(NULL);
+
+}
+
+void showMessages() {
+    std::string choice_str;
+    int choice;
+
+    // Display available status options
+    std::cout << "\nEnter '0' to exit at any time.\n";
+
+    threadExit = 1;
+
+    pthread_t pthread_message_dequeue;
+    pthread_create(&pthread_message_dequeue, NULL, messageDequeue, NULL);
+
+    while(1) {
+        if (choice_str.empty()) {    
+            // Read user input
+            std::getline(std::cin, choice_str);
+        }
+
+        // Check if the input is a valid digit
+        if (std::all_of(choice_str.begin(), choice_str.end(), ::isdigit)) {
+            // Convert string to integer
+            choice = std::stoi(choice_str);
+            // Adjust for 0-based indexing
+        } else {
+            // Notify the user of invalid input
+            std::cout << "Invalid input. Please enter a number.\n";
+        }
+
+        if (choice == 0) {
+            threadExit = 0;
+            break;
+        }
+    }
+    
+    pthread_join(pthread_message_dequeue, NULL);
+    
+}
+
 // Function to continuously listen responses from server
 void* listener(void* arg) {
     int clientSocket = *((int*)arg);
@@ -320,8 +382,9 @@ void* listener(void* arg) {
             break;
 
         case 5:
-            // TODO: Code to print help menu.
+            messagesQueue.push(response.incoming_message());
             break;
+
         }
         
         awaitingResponse = false;
@@ -413,33 +476,37 @@ int main(int argc, char* argv[]) {
         
         switch (choice) {
             case 1:
-                handleBroadcasting(clientSocket);
+                showMessages();
                 break;
 
             case 2:
-                // TODO: Code to send direct message.
+                handleBroadcasting(clientSocket);
                 break;
 
             case 3:
-                awaitingResponse = true;
-                handleStatusChange(clientSocket);
+                // TODO: Code to send direct message.
                 break;
 
             case 4:
                 awaitingResponse = true;
-                getActiveUsers(clientSocket);
+                handleStatusChange(clientSocket);
                 break;
 
             case 5:
                 awaitingResponse = true;
-                getSingleUser(clientSocket);
+                getActiveUsers(clientSocket);
                 break;
 
             case 6:
-                // TODO: Code to print help menu.
+                awaitingResponse = true;
+                getSingleUser(clientSocket);
                 break;
 
             case 7:
+                // TODO: Code to print help menu.
+                break;
+
+            case 8:
                 isRunnig = false;
                 std::cout << "Exiting now..." << std::endl;
                 close(clientSocket);
