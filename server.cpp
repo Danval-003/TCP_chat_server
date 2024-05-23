@@ -68,8 +68,6 @@ void* handleTimerClient(void* arg){
                     onlineUsers.erase(it);
                 }
             }
-            // Print
-            std::cout << info->userName << " se desconectó por inactividad. " << seconds<< std::endl;
         }
     }
     }
@@ -119,8 +117,7 @@ void* handleThreadMessages(void* arg) {
 void sendMessage(chat::Request* request, ClientInfo* info, const std::string& sender) {    
     // Verify if reciper not empty and If not exists, send message to all
     std::string reciper = request->send_message().recipient();
-        // Print message to console
-    std::cout << "Mensaje de " << sender << " para " << reciper << ": " << request->send_message().content() << std::endl;
+    // Print message to console
     if (reciper.empty()) {
         chat::Response response;
         response.set_operation(chat::INCOMING_MESSAGE);
@@ -212,13 +209,6 @@ void sendUsersList(ClientInfo* info) {
     response.set_message("Lista de usuarios.");
     chat::UserListResponse* userList = response.mutable_user_list();
     userList->set_type(chat::ALL);
-    // Print clients
-    {
-        std::lock_guard<std::mutex> lock(clientsMutex);
-        for (auto it = clients.begin(); it != clients.end(); ++it) {
-            std::cout << "Usuario: " << it.key() << std::endl;
-        }
-    }
 
     // Get all users arent offline, from clients
     {
@@ -275,17 +265,13 @@ void userInfo(std::string userName, ClientInfo* info){
     info->condition.notify_all();
 }
 
-void updateStatus(std::string userName, chat::Request request, ClientInfo* info, int* status){
+void updateStatus(std::string userName, chat::Request request, ClientInfo* info){
     // Verify if exist status in request
     if (!request.has_update_status()) {
         std::cerr << "No se especificó el nuevo estado." << std::endl;
     }
-
-    // print new status
-    std::cout << "Nuevo estado de " << userName << ": " << request.update_status().new_status() << std::endl;
     // Update status
     int newstatus = request.update_status().new_status();
-    status = &newstatus;
 
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
@@ -348,11 +334,10 @@ void* handleResponseClient(void* arg) {
         } else {
             lock.unlock();
         }
-    }
+        }
     } 
     catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
-        std::cout << "Error: " << e.what() << std::endl;
         // Try to create a new thread
         pthread_t responseThread;
         if (pthread_create(&responseThread, nullptr, handleResponseClient, (void*)info) != 0) {
@@ -505,9 +490,6 @@ void* handleListenClient(void* arg) {
                 }
             }
 
-            std::cout << "Solicitud recibida de " << userName << "." << std::endl;
-            std::cout << "Operación: " << request.operation() << std::endl;
-
             switch (request.operation()) {
                 case chat::SEND_MESSAGE:
                     sendMessage(&request, info, userName);
@@ -521,7 +503,12 @@ void* handleListenClient(void* arg) {
                     }
                     break;
                 case chat::UPDATE_STATUS:
-                    updateStatus(userName, request, info, &status);
+                    updateStatus(userName, request, info);
+                    // Obtain on status, status from clients
+                    {
+                        std::lock_guard<std::mutex> lock(clientsMutex);
+                        status = clients[userName]["status"];
+                    }
                     break;
 
                 case chat::UNREGISTER_USER:
