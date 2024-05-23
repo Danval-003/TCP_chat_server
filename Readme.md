@@ -29,7 +29,7 @@ To compile the project:
 3. For compiling the server:
    - Use the provided script:
      ```
-     ./compileServer.sh
+     ./compileServer.sh <port_to_listen>
      ```
    - Or manually compile using:
      ```
@@ -37,7 +37,7 @@ To compile the project:
      ```
    - Execute the server:
      ```
-     ./exec/server
+     ./exec/server <port_to_listen>
      ```
 
 ## Functionality

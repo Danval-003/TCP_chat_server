@@ -673,7 +673,16 @@ void* handleListenClient(void* arg) {
     return nullptr;
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    int port;
+    // Obtain from args port to server
+    if (argc != 2) {
+        std::cerr << "Uso: " << argv[0] << " <puerto>" << std::endl;
+        return 1;
+    }
+
+    port = std::stoi(argv[1]);
+
     // Obtain last serverSocket if exist from file
     json lastServer;
     std::ifstream lastFile("server.json");
@@ -715,7 +724,7 @@ int main() {
     sockaddr_in serverAddress{};
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_addr.s_addr = INADDR_ANY;
-    serverAddress.sin_port = htons(4000);
+    serverAddress.sin_port = htons(port);
 
     if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {
         std::cerr << "Error al vincular el socket." << std::endl;
