@@ -59,6 +59,10 @@ void* handleTimerClient(void* arg){
             {
                 std::lock_guard<std::mutex> lock(clientsMutex);
                 clients[info->userName]["status"] = chat::UserStatus::OFFLINE;
+                // Update json file with clients
+                std::ofstream file("clients.json");
+                file << clients.dump(4);
+                file.close();
             }
             // Remove user from online users
             {
@@ -232,6 +236,8 @@ void sendUsersList(ClientInfo* info) {
 }
 
 void userInfo(std::string userName, ClientInfo* info){
+    // Client
+    std::lock_guard<std::mutex> lock(clientsMutex);
     // Verify if userName exists into clients
     if (clients.find(userName) == clients.end()) {
         chat::Response response;
@@ -276,6 +282,10 @@ void updateStatus(std::string userName, chat::Request request, ClientInfo* info)
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
         clients[userName]["status"] = request.update_status().new_status();
+        // Update json file with clients
+        std::ofstream file("clients.json");
+        file << clients.dump(4);
+        file.close();
     }
     // If new status not online or busy, remove user from online users. And if new status is online or busy, add user to online users.
     {
@@ -415,6 +425,10 @@ void* handleListenClient(void* arg) {
             std::lock_guard<std::mutex> responsesLock(info->responsesMutex);
             info->responses->push(goodResponse);
             info->condition.notify_all();
+            // Update json file with clients
+            std::ofstream file("clients.json");
+            file << clients.dump(4);
+            file.close();
         }
     }
 
@@ -472,6 +486,10 @@ void* handleListenClient(void* arg) {
                 if (status != chat::UserStatus::OFFLINE) {
                     info->itsNotOffline.notify_all();
                 }
+                // Update json file with clients
+                std::ofstream file("clients.json");
+                file << clients.dump(4);
+                file.close();
             }
 
             // If status is offline, remove user from online users, else add user to online users
@@ -583,6 +601,10 @@ void* handleListenClient(void* arg) {
                 clients.erase(it);
             }
 
+            // Update json file with clients
+            std::ofstream file("clients.json");
+            file << clients.dump(4);
+            file.close();
         }
 
         close(clientSocket);
@@ -594,6 +616,10 @@ void* handleListenClient(void* arg) {
             {
                 std::lock_guard<std::mutex> lock(clientsMutex);
                 clients[userName]["status"] = chat::UserStatus::OFFLINE;
+                // Update json file with clients
+                std::ofstream file("clients.json");
+                file << clients.dump(4);
+                file.close();
             }
 
             // Wait for the response thread to finish
@@ -608,6 +634,10 @@ void* handleListenClient(void* arg) {
             {
                 std::lock_guard<std::mutex> lock(clientsMutex);
                 clients.erase(userName);
+                // Update json file with clients
+                std::ofstream file("clients.json");
+                file << clients.dump(4);
+                file.close();
             }
 
             // Delete user from online users
@@ -673,6 +703,14 @@ int main() {
     std::ofstream file("server.json");
     file << server.dump(4);
     file.close();
+
+    // Obtain clients from file
+    std::ifstream clientsFile("clients.json");
+    if (clientsFile.is_open()) {
+        clientsFile >> clients;
+        clientsFile.close();
+    }
+    
 
     sockaddr_in serverAddress{};
     serverAddress.sin_family = AF_INET;
