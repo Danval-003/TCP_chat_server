@@ -135,6 +135,8 @@ void getActiveUsers(int clientSocket) {
 
     // Set the operation type to GET_USERS in the request
     request.set_operation(chat::GET_USERS); 
+    auto *user_details = request.mutable_get_users();
+    user_details -> set_username("");
 
     // Send the request to the server using the specified client socket
     if (sendRequest(&request, clientSocket) < 0) {
@@ -382,13 +384,13 @@ void* listener(void* arg) {
                     std::cout << "Currently Active Users:" << std::endl;
                     // Iterate through the users in the user list and print each username
                     for (const auto& user : user_list.users()) {
-                        std::cout << "Username: " << user.username() << std::endl;
+                        std::cout << "Username: " << user.username() << " -> " << user_status[user.status()] << std::endl;
                     }
                 } else if (user_list.type() == chat::UserListType::SINGLE) {
                     std::cout << "User Information:" << std::endl;
                     // Iterate through the users in the list and print their usernames
                     for (const auto& user : user_list.users()) {
-                        std::cout << "Username: " << user.username() << std::endl;
+                        std::cout << "Username: " << user.username() << " -> " << user_status[user.status()] << std::endl;
                     }
                 }
             }
