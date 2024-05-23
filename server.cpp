@@ -497,6 +497,7 @@ void* handleListenClient(void* arg) {
                     sendMessage(&request, info, userName);
                     break;
                 case chat::GET_USERS:
+                    std::cout << "Get users "<< request.get_users().username()<< std::endl;
                     // Verify if username in request is empty
                     if (request.get_users().username().empty()) {
                         sendUsersList(info);
