@@ -490,6 +490,8 @@ void* handleListenClient(void* arg) {
                 }
             }
 
+            std::cout<< "Operation: " << request.operation()<< "username:"<< userName << std::endl;
+
             switch (request.operation()) {
                 case chat::SEND_MESSAGE:
                     sendMessage(&request, info, userName);
