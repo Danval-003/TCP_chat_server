@@ -92,14 +92,14 @@ void printMenu() {
 }
 
 // Function to register a new user on the server
-void registerUser(int clientSocket) {
+void registerUser(int clientSocket, std::string username) {
     // Create a new request object for user registration
     chat::Request request;
     request.set_operation(chat::REGISTER_USER); // Specify the operation type as user registration
 
     // Set up the new user's details in the request
     auto *newUser = request.mutable_register_user(); // Get a pointer to the user registration part of the request
-    newUser->set_username(TEST_USERNAME); // Set the username for the new user
+    newUser->set_username(username); // Set the username for the new user
 
     // Send the registration request to the server
     // If the request fails, print an error message and exit the program
@@ -437,19 +437,20 @@ int main(int argc, char* argv[]) {
     bool isRunnig = true;
 
     // Check if the number of command-line arguments is exactly 4
-    if (argc != 3) {
+    if (argc != 4) {
         printf("Usage: %s <username> <serverip> <port>\n", argv[0]);
-        //return 1; // Exit the program with an error code
+        return 1; // Exit the program with an error code
     }
 
-    //char username[100]; // Current client username.
-    //char serverip[100]; // Current client serverip.
-    //char port[100]; // Current client port.
+    char username[100]; // Current client username.
+    char serverip[100]; // Current client serverip.
+    int port; // Current client port.
 
     // Assign command-line arguments to the respective variables
-    //sprintf(username, "%s", argv[1]);
-    //sprintf(serverip, "%s", argv[2]);
-    //sprintf(port, "%s", argv[3]);
+    strcpy(username, argv[1]);
+    strcpy(serverip, argv[2]);
+    port = atoi(argv[3]);
+    
 
     // Print the values to verify
     std::cout << TEST_USERNAME << "\n";
@@ -466,8 +467,8 @@ int main(int argc, char* argv[]) {
     // Set up the server address and port
     sockaddr_in serverAddress{};
     serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(PORT);  // Replace with the actual server port
-    if (inet_pton(AF_INET, SERVER_IP, &(serverAddress.sin_addr)) <= 0) {
+    serverAddress.sin_port = htons(port);  // Replace with the actual server port
+    if (inet_pton(AF_INET, serverip, &(serverAddress.sin_addr)) <= 0) {
         std::cerr << "Invalid address/Address not supported." << std::endl;
         return 1;
     }
@@ -480,7 +481,7 @@ int main(int argc, char* argv[]) {
 
     // The following line calls the function to register a new user.
     // it will send a registration request to the server using the provided client socket.
-    registerUser(clientSocket);
+    registerUser(clientSocket, username);
 
     // Create pthread to handle server responses.
     pthread_t pthread_response;
