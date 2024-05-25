@@ -40,8 +40,10 @@ struct ThreadParams {
     pthread_t* receptor_pthread;
 };
 
-void printMenu() {
-    std::vector<std::string> menuItems = {
+// Function to print either the main menu or the help menu based on the parameter
+void printMenu(bool isMainMenu) {
+    // List of menu items for the main menu
+    std::vector<std::string> mainMenuItems = {
         "1. Show Messages",
         "2. Broadcasting",
         "3. Send Direct Message",
@@ -52,23 +54,43 @@ void printMenu() {
         "8. Exit"
     };
 
-    const std::string title = "OS Chat Main Menu";
+    // List of help items describing each menu option
+    std::vector<std::string> helpMenuItems = {
+        "1. Show Messages: Displays all your messages.",
+        "2. Broadcasting: Send a message to all users.",
+        "3. Send Direct Message: Send a private message to a specific user.",
+        "4. Change Status: Update your current status (e.g., online, busy, away).",
+        "5. List Active Users: See a list of users currently online.",
+        "6. Get User Information: Retrieve detailed information about a specific user.",
+        "7. Help: Displays this help menu.",
+        "8. Exit: Exit the chat application."
+    };
+
+    // Title for the menu based on the parameter
+    const std::string title = isMainMenu ? "OS Chat Main Menu" : "OS Chat Help Menu";
+    // Width of the menu
     const int width = 50;
+    // Character used for the border
     const char borderChar = '.';
 
+    // Lambda function to print a border line with a given character and length
     auto printBorder = [&](char ch, int count) {
         std::cout << std::string(count, ch) << std::endl;
     };
 
+    // Lambda function to print centered text within a border
     auto printCentered = [&](const std::string& text, int width, char borderChar) {
+        // Calculate padding needed to center the text
         int padding = (width - text.length()) / 2;
         int paddingLeft = padding;
         int paddingRight = padding;
 
+        // If the padding is not even, adjust the right padding
         if ((width - text.length()) % 2 != 0) {
             paddingRight++;
         }
 
+        // Print the text centered with the border character
         std::cout << borderChar << std::string(paddingLeft, ' ') << text 
                   << std::string(paddingRight, ' ') << borderChar << std::endl;
     };
@@ -76,14 +98,15 @@ void printMenu() {
     // Print top border
     printBorder(borderChar, width);
 
-    // Print title
+    // Print title centered
     printCentered(title, width - 2, borderChar);
 
     // Print separating border
     printBorder(borderChar, width);
 
-    // Print menu items
-    for (const auto& item : menuItems) {
+    // Print each menu item centered based on the parameter
+    const auto& items = isMainMenu ? mainMenuItems : helpMenuItems;
+    for (const auto& item : items) {
         printCentered(item, width - 2, borderChar);
     }
 
@@ -497,7 +520,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (choiceStr.empty()) {
-            printMenu();
+            printMenu(true);
             std::cout << "\nWhat would you like to do? " << std::endl;
             std::getline(std::cin, choiceStr);
             continue;
@@ -539,7 +562,7 @@ int main(int argc, char* argv[]) {
                 break;
 
             case 7:
-                // TODO: Code to print help menu.
+                printMenu(false);
                 break;
 
             case 8:
