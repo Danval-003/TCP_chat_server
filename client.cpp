@@ -58,10 +58,10 @@ void printMenu(bool isMainMenu) {
     std::vector<std::string> helpMenuItems = {
         "1. Show Messages: Displays all your messages.",
         "2. Broadcasting: Send a message to all users.",
-        "3. Send Direct Message: Send a private message to a specific user.",
-        "4. Change Status: Update your current status (e.g., online, busy, away).",
+        "3. Send Direct Message: Send a private message to a user.",
+        "4. Change Status: Update your current status.",
         "5. List Active Users: See a list of users currently online.",
-        "6. Get User Information: Retrieve detailed information about a specific user.",
+        "6. Get User Information: Retrieve information about a user.",
         "7. Help: Displays this help menu.",
         "8. Exit: Exit the chat application."
     };
@@ -69,7 +69,7 @@ void printMenu(bool isMainMenu) {
     // Title for the menu based on the parameter
     const std::string title = isMainMenu ? "OS Chat Main Menu" : "OS Chat Help Menu";
     // Width of the menu
-    const int width = 50;
+    const int width = 75;
     // Character used for the border
     const char borderChar = '.';
 
@@ -476,9 +476,9 @@ int main(int argc, char* argv[]) {
     
 
     // Print the values to verify
-    std::cout << TEST_USERNAME << "\n";
-    std::cout << SERVER_IP << "\n";
-    std::cout << PORT << "\n";
+    std::cout << username << "\n";
+    std::cout << serverip << "\n";
+    std::cout << port << "\n";
 
     // Create a socket
     int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
