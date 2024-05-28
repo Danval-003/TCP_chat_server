@@ -439,7 +439,6 @@ void* handleListenClient(void* arg) {
 
             // Verify if this ip not into clients
             {
-                std::lock_guard<std::mutex> lock(clientsMutex);
                 for (auto it = clients.begin(); it != clients.end(); ++it) {
                     if (it.value()["ip"] == info->ipAddress) {
                         chat::Response badResponse;
