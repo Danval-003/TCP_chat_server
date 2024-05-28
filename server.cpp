@@ -416,6 +416,8 @@ void* handleListenClient(void* arg) {
         if (clients.find(userName) != clients.end()) {
             // Print clients list
             std::cout << clients.dump(4) << std::endl;
+            std::cout << "ip:" << clients[userName]["ip"] << "info->ipAddress:" << info->ipAddress << std::endl;
+
             if (clients[userName]["ip"] != info->ipAddress) {
                 chat::Response badResponse;
                 badResponse.set_operation(chat::REGISTER_USER);
