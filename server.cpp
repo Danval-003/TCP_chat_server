@@ -437,8 +437,11 @@ void* handleListenClient(void* arg) {
                 std::lock_guard<std::mutex> responsesLock(info->responsesMutex);
                 info->responses->push(goodResponse);
                 info->condition.notify_all();
-                onlineIps.push_back(info->ipAddress);
-                
+                // Add IP
+                {
+                    std::lock_guard<std::mutex> lock(onlineIpsMutex);
+                    onlineIps.push_back(info->ipAddress);
+                } 
             }
         } else {
 
@@ -472,6 +475,11 @@ void* handleListenClient(void* arg) {
             std::ofstream file("clients.json");
             file << clients.dump(4);
             file.close();
+            // Add ip to online IPs
+            {
+                std::lock_guard<std::mutex> lock(onlineIpsMutex);
+                onlineIps.push_back(info->ipAddress);
+            }
         }
     }
 
@@ -650,6 +658,15 @@ void* handleListenClient(void* arg) {
             file.close();
         }
 
+            // Delete from online IPs
+        {
+            std::lock_guard<std::mutex> lock(onlineIpsMutex);
+            auto it = std::find(onlineIps.begin(), onlineIps.end(), info->ipAddress);
+            if (it != onlineIps.end()) {
+                onlineIps.erase(it);
+            }
+        }
+
         close(clientSocket);
     }
     else{
@@ -701,6 +718,15 @@ void* handleListenClient(void* arg) {
                 }
             }
 
+                // Delete from online IPs
+            {
+                std::lock_guard<std::mutex> lock(onlineIpsMutex);
+                auto it = std::find(onlineIps.begin(), onlineIps.end(), info->ipAddress);
+                if (it != onlineIps.end()) {
+                    onlineIps.erase(it);
+                }
+            }
+
             close(clientSocket);
             }
             catch (const std::exception& e) {
@@ -712,15 +738,6 @@ void* handleListenClient(void* arg) {
                     std::cerr << "Error al crear el hilo para el cliente." << std::endl;
                 }
             }
-    }
-
-    // Delete from online IPs
-    {
-        std::lock_guard<std::mutex> lock(onlineIpsMutex);
-        auto it = std::find(onlineIps.begin(), onlineIps.end(), info->ipAddress);
-        if (it != onlineIps.end()) {
-            onlineIps.erase(it);
-        }
     }
     return nullptr;
 }
