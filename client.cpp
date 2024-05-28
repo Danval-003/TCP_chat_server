@@ -139,18 +139,13 @@ void registerUser(int clientSocket, std::string username) {
         exit(1); // Exit the program with an error code
     }
 
+    std::cout << response.message() << std::endl; // Print the success message from the server
+
     // Handle the server's response
     if (response.status_code() == chat::BAD_REQUEST) { // Check if the registration failed due to a bad request
-        // Inform the user that the username is already taken
-        std::cout << "\nRegistration failed: The username '" << TEST_USERNAME 
-                  << "' is already taken. Please choose a different username." << std::endl;
         exit(1); // Exit the program with an error code
     }
 
-    // Check if the registration was successful
-    if (response.status_code() == chat::OK) { // If the response status is OK
-        std::cout << response.message() << std::endl; // Print the success message from the server
-    }
 }
 
 void getActiveUsers(int clientSocket) {
