@@ -414,6 +414,8 @@ void* handleListenClient(void* arg) {
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
         if (clients.find(userName) != clients.end()) {
+            // Print clients list
+            std::cout << clients.dump(4) << std::endl;
             if (clients[userName]["ip"] != info->ipAddress) {
                 chat::Response badResponse;
                 badResponse.set_operation(chat::REGISTER_USER);
