@@ -40,7 +40,9 @@ std::condition_variable messagesCondition;
 std::vector<ClientInfo*> clientsInfo;
 std::mutex clientsInfoMutex;
 std::mutex onlineUsersMutex;
+std::mutex onlineIpsMutex;
 json onlineUsers;
+json onlineIps;
 
 void* handleTimerClient(void* arg){
     ClientInfo* info = static_cast<ClientInfo*>(arg);
@@ -392,21 +394,19 @@ void* handleListenClient(void* arg) {
     }
 
 
-    // Verify if ip are not exist in clients info
+    // Verify if ip are not exist in online IPs
     {
-        std::lock_guard<std::mutex> lock(clientsInfoMutex);
-        for (ClientInfo* clientInfo : clientsInfo) {
-            if (clientInfo->ipAddress == info->ipAddress) {
-                chat::Response badResponse;
-                badResponse.set_operation(chat::REGISTER_USER);
-                badResponse.set_status_code(chat::BAD_REQUEST);
-                badResponse.set_message("User already registered.");
-                std::lock_guard<std::mutex> responsesLock(info->responsesMutex);
-                info->responses->push(badResponse);
-                info->condition.notify_all();
-                info->connected = false;
-                return nullptr;
-            }
+        std::lock_guard<std::mutex> lock(onlineIpsMutex);
+        if (std::find(onlineIps.begin(), onlineIps.end(), info->ipAddress) != onlineIps.end()) {
+            chat::Response badResponse;
+            badResponse.set_operation(chat::REGISTER_USER);
+            badResponse.set_status_code(chat::BAD_REQUEST);
+            badResponse.set_message("IPs already in use.");
+            std::lock_guard<std::mutex> responsesLock(info->responsesMutex);
+            info->responses->push(badResponse);
+            info->condition.notify_all();
+            info->connected = false;
+            return nullptr;
         }
     }
 
@@ -437,6 +437,7 @@ void* handleListenClient(void* arg) {
                 std::lock_guard<std::mutex> responsesLock(info->responsesMutex);
                 info->responses->push(goodResponse);
                 info->condition.notify_all();
+                onlineIps.push_back(info->ipAddress);
                 
             }
         } else {
@@ -711,6 +712,15 @@ void* handleListenClient(void* arg) {
                     std::cerr << "Error al crear el hilo para el cliente." << std::endl;
                 }
             }
+    }
+
+    // Delete from online IPs
+    {
+        std::lock_guard<std::mutex> lock(onlineIpsMutex);
+        auto it = std::find(onlineIps.begin(), onlineIps.end(), info->ipAddress);
+        if (it != onlineIps.end()) {
+            onlineIps.erase(it);
+        }
     }
     return nullptr;
 }
