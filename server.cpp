@@ -390,7 +390,26 @@ void* handleListenClient(void* arg) {
         std::cerr << "Error al crear el hilo de respuesta." << std::endl;
         return nullptr;
     }
-    
+
+
+    // Verify if ip are not exist in clients info
+    {
+        std::lock_guard<std::mutex> lock(clientsInfoMutex);
+        for (ClientInfo* clientInfo : clientsInfo) {
+            if (clientInfo->ipAddress == info->ipAddress) {
+                chat::Response badResponse;
+                badResponse.set_operation(chat::REGISTER_USER);
+                badResponse.set_status_code(chat::BAD_REQUEST);
+                badResponse.set_message("User already registered.");
+                std::lock_guard<std::mutex> responsesLock(info->responsesMutex);
+                info->responses->push(badResponse);
+                info->condition.notify_all();
+                info->connected = false;
+                return nullptr;
+            }
+        }
+    }
+
 
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
@@ -417,6 +436,26 @@ void* handleListenClient(void* arg) {
                 
             }
         } else {
+
+            // Verify if this ip not into clients
+            {
+                std::lock_guard<std::mutex> lock(clientsMutex);
+                for (auto it = clients.begin(); it != clients.end(); ++it) {
+                    if (it.value()["ip"] == info->ipAddress) {
+                        chat::Response badResponse;
+                        badResponse.set_operation(chat::REGISTER_USER);
+                        badResponse.set_status_code(chat::BAD_REQUEST);
+                        badResponse.set_message("User already has other username associated.");
+                        std::lock_guard<std::mutex> responsesLock(info->responsesMutex);
+                        info->responses->push(badResponse);
+                        info->condition.notify_all();
+                        info->connected = false;
+                        return nullptr;
+                    }
+                }
+            }
+
+
             clients[userName] = client;
             chat::Response goodResponse;
             goodResponse.set_operation(chat::REGISTER_USER);
