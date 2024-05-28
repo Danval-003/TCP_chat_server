@@ -20,6 +20,7 @@ using namespace std;
 // This limit is predetermined to ensure sufficient space for data processing,
 // preventing buffer overflow and maintaining system stability.
 #define BUFFER_SIZE 5000
+char username[100]; // Current client username.
 
 // Boolean to handle waiting status
 std::atomic<bool>awaitingResponse{false};
@@ -283,6 +284,7 @@ void handleStatusChange(int clientSocket) {
 
     // Get a pointer to the mutable update_status field in the request
     auto *request_status = request.mutable_update_status();
+    request_status -> set_username(username);
 
     // Set the user's chosen status based on their input
     switch (choice){
@@ -448,7 +450,7 @@ void unregister(int clientSocket) {
     // Get a pointer to the mutable unregister_user field in the request
     auto *request_user = request.mutable_unregister_user();
 
-    request_user -> set_username(TEST_USERNAME);
+    request_user -> set_username(username);
 
     sendRequest(&request, clientSocket); 
 }
@@ -465,7 +467,7 @@ int main(int argc, char* argv[]) {
         return 1; // Exit the program with an error code
     }
 
-    char username[100]; // Current client username.
+
     char serverip[100]; // Current client serverip.
     int port; // Current client port.
 
