@@ -14,6 +14,7 @@
 #include <queue>
 #include <condition_variable>
 #include <time.h>
+#include <vector>
 
 struct ClientInfo {
     int socket;
@@ -42,7 +43,7 @@ std::mutex clientsInfoMutex;
 std::mutex onlineUsersMutex;
 std::mutex onlineIpsMutex;
 json onlineUsers;
-json onlineIps;
+std::vector<std::string> onlineIps;
 
 void* handleTimerClient(void* arg){
     ClientInfo* info = static_cast<ClientInfo*>(arg);
@@ -521,6 +522,14 @@ void* handleListenClient(void* arg) {
             int status2 = getRequest(&request, clientSocket);
             if (status2 == -1 || status2 == 2) {
                 std::cerr << userName << " se desconectó." << std::endl;
+                    // Delete from online IPs
+                    {
+                        std::lock_guard<std::mutex> lock(onlineIpsMutex);
+                        auto it = std::find(onlineIps.begin(), onlineIps.end(), info->ipAddress);
+                        if (it != onlineIps.end()) {
+                            onlineIps.erase(it);
+                        }
+                    }
                 break;
             }
 
@@ -658,7 +667,7 @@ void* handleListenClient(void* arg) {
             file.close();
         }
 
-            // Delete from online IPs
+                // Delete Ip from ips online (vector)
         {
             std::lock_guard<std::mutex> lock(onlineIpsMutex);
             auto it = std::find(onlineIps.begin(), onlineIps.end(), info->ipAddress);
@@ -717,8 +726,7 @@ void* handleListenClient(void* arg) {
                     clientsInfo.erase(it);
                 }
             }
-
-                // Delete from online IPs
+            // Delete Ip from ips online (vector)
             {
                 std::lock_guard<std::mutex> lock(onlineIpsMutex);
                 auto it = std::find(onlineIps.begin(), onlineIps.end(), info->ipAddress);
